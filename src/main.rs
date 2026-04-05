@@ -1,3 +1,4 @@
+mod csv;
 mod data;
 mod engine;
 mod models;

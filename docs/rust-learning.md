@@ -229,6 +229,50 @@ This required:
 
 ---
 
+# 🎯 Engine patterns (positions, floats, and state)
+
+The sections above introduced `Option` in general (for example, moving-average history). The backtesting **engine** uses `Option` and related ideas in a few extra ways, tied to `src/engine.rs`.
+
+## Using `Option<T>` to model position state
+
+**What it is:** A single variable that is either “no open trade” (`None`) or “in a trade” (`Some(position_data)`). The compiler keeps buy/sell logic honest: you cannot treat a position as open without handling the empty case.
+
+**How it is used in this project:** `position: Option<Position>` starts as `None`. A fill sets `position = Some((entry_price, size, allocation))`. The buy branch checks `position.is_none()` so we only enter when flat; after a sell, the slot is cleared again (via `take()` or by not re-assigning after closing).
+
+**Why it matters:** Flat vs long is exactly the kind of state bugs love. Encoding it as `Option` avoids sentinel values (like `size == 0.0`) and lines up with how we think about the book: either we hold something or we do not.
+
+---
+
+## `Option::take()` — move the value out and reset to `None`
+
+**What it is:** A method that pulls `Some(x)` out of the option, gives you `x`, and leaves the original `Option` as `None` in one step.
+
+**How it is used in this project:** On a sell signal, `position.take()` yields the tuple `(entry_price, size, allocation)` and clears `position` so we are flat without manually assigning `None`. The same idea appears for `open_trade_id.take()` when logging the sell: consume the id that was stored at buy time.
+
+**Why it matters:** Without `take()`, it is easy to read the position, use it, and forget to clear it—or to clear it before you have finished using the data. `take()` makes “extract and empty” the default pattern and reduces duplicate state.
+
+---
+
+## Avoiding floating-point equality
+
+**What it is:** `f64` values are approximations. Comparing with `==` or `!=` is usually wrong for “is this zero?” or “are these equal?” because tiny rounding noise breaks the check.
+
+**How it is used in this project:** Before opening a trade, we only act if there is meaningful cash to allocate, using a small threshold: `allocation > f64::EPSILON` (see the buy branch in `engine::run`). We do not compare prices or sizes with `==` for control flow.
+
+**Why it matters:** Backtests repeat many arithmetic steps. A spurious `== 0.0` can skip a trade or double-count; a threshold-based check stays stable for “do we have enough to size a position?”.
+
+---
+
+## Structuring state to avoid recomputation (stored `allocation`)
+
+**What it is:** Keeping a derived number alongside the inputs when that number is the canonical value for later logic (here, how much cash was actually put into the trade).
+
+**How it is used in this project:** `Position` is `(entry_price, size, allocation)` with `allocation` set at buy time (the cash debited). On exit, PnL uses that stored `allocation`: `pnl = proceeds - allocation` instead of recomputing `size * entry_price`, which could drift slightly from what we debited due to float order.
+
+**Why it matters:** One source of truth for “how much was invested” keeps trade logs, PnL, and cash ledger aligned and easier to audit when exporting CSV or charting results.
+
+---
+
 # 🚀 Next Topics to Explore
 
 - Result<T, E> (error handling)

@@ -1,20 +1,44 @@
 # 🦀 Rust Learning Notes
 
-This document captures key Rust concepts I’ve learned while building a trading backtesting engine. The focus is on understanding _why_ Rust works the way it does, not just syntax.
+This document captures key Rust concepts learned while building a trading backtesting engine. The focus is on _why_ Rust works the way it does, not just syntax.
+
+## Contents
+
+1. [Ownership and borrowing](#1-ownership-and-borrowing)
+2. [Option and representing absence](#2-option-and-representing-absence)
+3. [Strategy logic: state and signals](#3-strategy-logic-state-and-signals)
+4. [Backtesting engine patterns](#4-backtesting-engine-patterns)
+5. [Takeaways](#5-takeaways)
+6. [Next topics](#6-next-topics-to-explore)
 
 ---
 
-# 📦 Option<T> — Handling Absence Safely
+## 1. Ownership and borrowing
 
-## What is Option?
+Rust enforces memory safety through **ownership**.
 
-In Rust, values can explicitly represent the possibility of being absent using:
+**Core ideas**
+
+- Each value has one owner.
+- Data can be **borrowed** (`&T`) instead of moved or copied.
+
+**Example from this project**
 
 ```rust
-Option<T>
+for candle in &data {
 ```
 
-It is defined as:
+Iterating over `&data` borrows the slice so the caller keeps ownership of `Vec<Candle>` (or `&[Candle]`) and can reuse it—for example, running several strategies on the same candles without cloning.
+
+**Why it matters**
+
+If you moved `data` into a loop without borrowing, you could not use it again. The compiler forces an explicit data flow, which shows up everywhere in the engine and in `run(data: &[Candle], ...)`.
+
+---
+
+## 2. Option and representing absence
+
+Rust has no `null`. Absence is modeled with **`Option<T>`**:
 
 ```rust
 enum Option<T> {
@@ -23,34 +47,18 @@ enum Option<T> {
 }
 ```
 
----
+**Why it exists**
 
-## Why It Exists
+You must decide what to do when a value might be missing—no silent `null` dereferences.
 
-Unlike many languages:
-
-- No `null`
-- No undefined references
-
-Instead, Rust forces you to explicitly handle missing values.
-
----
-
-## Example
+**Basic usage**
 
 ```rust
 let value: Option<f64> = Some(10.5);
+let empty: Option<f64> = None;
 ```
 
-or:
-
-```rust
-let value: Option<f64> = None;
-```
-
----
-
-## Pattern Matching with `if let`
+**`if let` — run code only when there is a value**
 
 ```rust
 if let Some(v) = value {
@@ -58,42 +66,7 @@ if let Some(v) = value {
 }
 ```
 
-This means:
-
-> “Only run this block if the value exists”
-
----
-
-## Multiple Values
-
-```rust
-if let (Some(a), Some(b)) = (x, y) {
-    // both values exist
-}
-```
-
-Used in my project to ensure both moving averages are available before generating signals.
-
----
-
-## Why This Matters (Trading Context)
-
-In my trading engine:
-
-```rust
-previous_short: Option<f64>
-previous_long: Option<f64>
-```
-
-These are `None` initially because:
-
-- There isn’t enough historical data yet
-
-Rust forces me to explicitly handle this case before computing signals.
-
----
-
-## Alternative: match
+**`match` — handle every case**
 
 ```rust
 match value {
@@ -102,183 +75,140 @@ match value {
 }
 ```
 
-More explicit but more verbose than `if let`.
+`if let` is shorter when you only care about `Some`; `match` is better when every branch matters.
 
----
+**Multiple options**
 
-# ⚠️ unwrap() — Use With Caution
+```rust
+if let (Some(a), Some(b)) = (x, y) {
+    // both exist
+}
+```
+
+Used in the moving-average strategy so signals are only emitted when **both** previous short and long averages exist.
+
+**`unwrap()` — use with care**
 
 ```rust
 let v = value.unwrap();
 ```
 
-This:
+This returns the inner value or **panics** if the option is `None`.
 
-- Extracts the value if it exists
-- Panics if it is `None`
+- Fine for quick experiments or when failure is truly impossible.
+- Avoid in production, user-facing code, or trading logic—silent crashes are worse than compile-time or explicit errors.
 
----
-
-## When to Use
-
-✔ Quick prototypes
-✔ Situations where failure is impossible
-
----
-
-## When NOT to Use
-
-❌ Production code
-❌ Anything user-facing
-❌ Trading systems (silent crashes = bad)
-
----
-
-# 🧠 Ownership & Borrowing (Early Notes)
-
-Rust enforces memory safety through ownership.
-
-## Key Idea:
-
-- Each value has one owner
-- Data can be borrowed instead of copied
-
----
-
-## Example
-
-```rust
-for candle in &data {
-```
-
-This:
-
-- Borrows data
-- Prevents moving it
-- Allows reuse later
-
----
-
-## Why It Matters
-
-Without borrowing:
-
-- You lose access to data after iteration
-- Causes compile errors
-
-Rust forces explicit data flow.
-
----
-
-# 🔄 State & Time-Based Logic
-
-A key concept in my project:
-
-> Systems that evolve over time require **state**
-
-Example:
+**Strategy fields**
 
 ```rust
 previous_short: Option<f64>
+previous_long: Option<f64>
 ```
 
-This stores:
-
-- The previous value
-- Enables detecting transitions (crossovers)
+These start as `None` until enough history exists. Rust forces handling that case before computing crossover signals.
 
 ---
 
-## Insight
+## 3. Strategy logic: state and signals
 
-Trading strategies are not just about values:
+**State over time**
 
-- They are about **changes over time**
+Strategies are not stateless formulas—they **remember** prior values (e.g. previous moving averages) so the program can detect **change**, not just level.
 
-Rust models this explicitly through state.
+**Signals vs raw conditions**
 
----
-
-# 📈 Signals vs Events
-
-Initial mistake:
+A common mistake:
 
 ```text
 If short > long → BUY
 ```
 
-Correct approach:
+The crossover strategy needs **events**:
 
 ```text
 If short crosses above long → BUY
 ```
 
-This required:
+That requires past and present values and comparing transitions, not a single snapshot.
 
-- Tracking previous values
-- Comparing past vs present
-
----
-
-# 🧠 Key Takeaways So Far
-
-- Rust forces explicit handling of uncertainty (`Option`)
-- State must be modeled explicitly
-- Borrowing enables safe data reuse
-- Pattern matching is central to control flow
+Rust makes that state explicit in structs and `Option` fields, which matches how trading logic actually works.
 
 ---
 
-# 🎯 Engine patterns (positions, floats, and state)
+## 4. Backtesting engine patterns
 
-The sections above introduced `Option` in general (for example, moving-average history). The backtesting **engine** uses `Option` and related ideas in a few extra ways, tied to `src/engine.rs`.
+The following applies to `src/engine.rs`. Earlier sections cover `Option` in general (e.g. moving-average history); here the **engine** applies the same ideas to **positions**, **cash**, and **outputs**.
 
-## Using `Option<T>` to model position state
+### `Option` for open positions
 
-**What it is:** A single variable that is either “no open trade” (`None`) or “in a trade” (`Some(position_data)`). The compiler keeps buy/sell logic honest: you cannot treat a position as open without handling the empty case.
+**What:** `position: Option<Position>` is either flat (`None`) or in a trade (`Some(...)`).
 
-**How it is used in this project:** `position: Option<Position>` starts as `None`. A fill sets `position = Some((entry_price, size, allocation))`. The buy branch checks `position.is_none()` so we only enter when flat; after a sell, the slot is cleared again (via `take()` or by not re-assigning after closing).
+**How:** Starts as `None`. A fill sets `position = Some((entry_price, size, allocation))`. Buys use `position.is_none()`; after a sell the slot is cleared (see `take()` below).
 
-**Why it matters:** Flat vs long is exactly the kind of state bugs love. Encoding it as `Option` avoids sentinel values (like `size == 0.0`) and lines up with how we think about the book: either we hold something or we do not.
+**Why:** Avoids sentinel values (e.g. `size == 0.0`) and matches the mental model: you either hold something or you do not.
+
+### `Option::take()`
+
+**What:** Moves `Some(x)` out, returns `x`, and sets the option to `None` in one step.
+
+**How:** On a sell, `position.take()` yields the tuple and clears the position. `open_trade_id.take()` does the same for the id stored at buy time.
+
+**Why:** Reduces “read, use, forget to clear” bugs and keeps duplicate state in sync.
+
+### Floating-point comparisons
+
+**What:** `f64` is approximate; `==` / `!=` are usually wrong for “is this zero?” or “are these equal?”
+
+**How:** Before opening a trade, require meaningful size with something like `allocation > f64::EPSILON` in the buy branch—not `== 0.0` on floats for control flow.
+
+**Why:** Long backtests compound rounding noise; a threshold stays stable for “enough cash to size a position?”
+
+### Storing `allocation` on the position
+
+**What:** Keep the **cash actually debited** as part of `Position`: `(entry_price, size, allocation)`.
+
+**How:** Set `allocation` at buy. On exit, `pnl = proceeds - allocation` instead of recomputing `size * entry_price`, which can drift from the debited amount.
+
+**Why:** One source of truth for capital at risk keeps PnL, logs, and CSV exports aligned.
+
+### Passing `&[Candle]` instead of `Vec<Candle>`
+
+**What:** The engine takes a **slice** `&[Candle]` so callers lend data without transferring ownership.
+
+**How:** `fn run(data: &[Candle], ...)` and `main` passes `&candles` for each strategy run.
+
+**Why:** No unnecessary clones, clearer intent, and slightly better performance on large datasets.
+
+### Generic `run` with the `Strategy` trait
+
+**What:** `fn run<S: Strategy>(...)` accepts any type that implements `Strategy`.
+
+**How:** `MovingAverage`, `RandomStrategy`, and future strategies share one execution path.
+
+**Why:** The engine stays decoupled from a single strategy implementation and stays easy to extend.
+
+### Separation of concerns
+
+**What:** Different modules own different jobs.
+
+**How (this project):** strategy code emits **signals**; the **engine** applies fills and accounting; **CSV** writes files.
+
+**Why:** Easier to test, extend, and reason about than one giant module.
 
 ---
 
-## `Option::take()` — move the value out and reset to `None`
+## 5. Takeaways
 
-**What it is:** A method that pulls `Some(x)` out of the option, gives you `x`, and leaves the original `Option` as `None` in one step.
-
-**How it is used in this project:** On a sell signal, `position.take()` yields the tuple `(entry_price, size, allocation)` and clears `position` so we are flat without manually assigning `None`. The same idea appears for `open_trade_id.take()` when logging the sell: consume the id that was stored at buy time.
-
-**Why it matters:** Without `take()`, it is easy to read the position, use it, and forget to clear it—or to clear it before you have finished using the data. `take()` makes “extract and empty” the default pattern and reduces duplicate state.
-
----
-
-## Avoiding floating-point equality
-
-**What it is:** `f64` values are approximations. Comparing with `==` or `!=` is usually wrong for “is this zero?” or “are these equal?” because tiny rounding noise breaks the check.
-
-**How it is used in this project:** Before opening a trade, we only act if there is meaningful cash to allocate, using a small threshold: `allocation > f64::EPSILON` (see the buy branch in `engine::run`). We do not compare prices or sizes with `==` for control flow.
-
-**Why it matters:** Backtests repeat many arithmetic steps. A spurious `== 0.0` can skip a trade or double-count; a threshold-based check stays stable for “do we have enough to size a position?”.
+- **Ownership and borrowing** — reuse data (e.g. candle history) safely without hidden copies.
+- **`Option`** — model missing data and open/flat state explicitly; pair with `if let` / `match`; avoid careless `unwrap()`.
+- **State and time** — strategies need memory of the past; signals are **events**, not static inequalities.
+- **Engine patterns** — `Option` + `take()` for positions and ids, epsilon for float thresholds, stored `allocation`, slice arguments, and trait-based `run` keep the simulator clear and extensible.
 
 ---
 
-## Structuring state to avoid recomputation (stored `allocation`)
+## 6. Next topics to explore
 
-**What it is:** Keeping a derived number alongside the inputs when that number is the canonical value for later logic (here, how much cash was actually put into the trade).
-
-**How it is used in this project:** `Position` is `(entry_price, size, allocation)` with `allocation` set at buy time (the cash debited). On exit, PnL uses that stored `allocation`: `pnl = proceeds - allocation` instead of recomputing `size * entry_price`, which could drift slightly from what we debited due to float order.
-
-**Why it matters:** One source of truth for “how much was invested” keeps trade logs, PnL, and cash ledger aligned and easier to audit when exporting CSV or charting results.
-
----
-
-# 🚀 Next Topics to Explore
-
-- Result<T, E> (error handling)
-- Traits (strategy abstraction)
+- `Result<T, E>` (error handling)
 - Lifetimes (advanced borrowing)
 - Iterators vs loops
 - Performance considerations in Rust
-
----

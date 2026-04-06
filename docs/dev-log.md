@@ -94,3 +94,45 @@ A correct implementation does not imply a good strategy.
 - Introduce a second strategy for comparison
 - Build toward running multiple strategies (“bots”) on the same dataset
 - Compare performance using equity curves
+
+## Day 2 — Strategy Abstraction & Engine Refactor
+
+### What I built
+
+- Introduced a `Strategy` trait
+- Refactored engine to support multiple strategies
+- Added a random strategy for comparison
+- Removed data cloning by passing references
+- Extracted helper functions for clarity
+
+---
+
+### What I learned (Rust)
+
+- Generics (`<S: Strategy>`) allow flexible and reusable designs
+- Passing by reference avoids unnecessary memory usage
+- Small helper functions improve readability without overengineering
+
+---
+
+### What I learned (System Design)
+
+- Separating strategy from execution is critical
+- Designing for extension early simplifies future changes
+- Clean data flow makes the system easier to reason about
+
+---
+
+### What I observed
+
+- The same engine can now run different strategies
+- Outputs are directly comparable across strategies
+- The system is evolving into a reusable simulation framework
+
+---
+
+### Next steps
+
+- Add unit tests for core logic
+- Compare multiple strategies visually
+- Introduce simple performance metrics

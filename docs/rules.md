@@ -7,6 +7,48 @@
 - Use structs to model state clearly
 - Avoid deeply nested logic
 
+## Data Flow & Ownership
+
+- Prefer passing data by reference (`&[T]`) instead of cloning
+- Avoid unnecessary allocations and copies
+- Functions should not take ownership unless required
+
+---
+
+## Engine Design
+
+- The engine should be generic over strategies (`Strategy` trait)
+- Strategies must not depend on engine internals
+- The engine handles:
+
+  - capital
+  - execution
+  - logging
+
+---
+
+## Logging & Output
+
+- All outputs should be structured for analysis (CSV-first design)
+- Avoid printing values that are not also captured in logs
+- Keep output formats consistent across strategies
+
+---
+
+## Code Structure
+
+- Extract small helper functions when they reduce duplication
+- Avoid repeating formatting or calculation logic
+- Prefer clarity over abstraction
+
+---
+
+## Testing Philosophy
+
+- Core logic should be testable in isolation
+- Avoid tightly coupling logic to I/O (e.g. CSV writing)
+- Prefer deterministic behaviour in tests (avoid randomness)
+
 ## State & Simplicity Rules
 
 - Prefer using `Option<T>` to represent presence/absence of state

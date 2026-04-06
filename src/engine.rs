@@ -1,6 +1,6 @@
 use crate::csv::write_csv;
 use crate::models::{Candle, Signal};
-use crate::strategy::MovingAverage;
+use crate::strategy::Strategy;
 
 const INITIAL_CAPITAL: f64 = 10_000.0;
 const POSITION_FRACTION: f64 = 0.10;
@@ -8,8 +8,31 @@ const POSITION_FRACTION: f64 = 0.10;
 /// Open position: `(entry_price per unit, size in units, cash allocated at entry)`.
 type Position = (f64, f64, f64);
 
-pub fn run(data: Vec<Candle>) {
-    let mut strategy = MovingAverage::new(5, 20);
+fn calculate_capital(cash: f64, position: Option<Position>, mark_price: f64) -> f64 {
+    let held = position.map(|(_, size, _)| size).unwrap_or(0.0);
+    cash + held * mark_price
+}
+
+fn make_trade_row(
+    trade_id: u32,
+    timestamp: &str,
+    side: &str,
+    price: f64,
+    pnl: f64,
+    capital: f64,
+) -> Vec<String> {
+    vec![
+        trade_id.to_string(),
+        timestamp.to_string(),
+        side.to_string(),
+        format!("{:.6}", price),
+        format!("{:.2}", pnl),
+        format!("{:.2}", capital),
+    ]
+}
+
+pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
+    println!("=== {} ===", strategy_name);
 
     let mut cash = INITIAL_CAPITAL;
     let mut position: Option<Position> = None;
@@ -19,7 +42,7 @@ pub fn run(data: Vec<Candle>) {
     let mut trade_rows: Vec<Vec<String>> = Vec::new();
     let mut equity_curve: Vec<(String, f64)> = Vec::with_capacity(data.len());
 
-    for candle in &data {
+    for candle in data {
         let signal = strategy.next(candle.close);
 
         match signal {
@@ -36,21 +59,21 @@ pub fn run(data: Vec<Candle>) {
                         cash -= allocation;
                         position = Some((candle.close, size, allocation));
 
-                        let capital = cash + size * candle.close;
+                        let capital = calculate_capital(cash, position, candle.close);
 
                         println!(
                             "{} | id {} | BUY | price {:.6} | pnl 0.00 | capital {:.2}",
                             candle.timestamp, trade_id, candle.close, capital
                         );
 
-                        trade_rows.push(vec![
-                            trade_id.to_string(),
-                            candle.timestamp.clone(),
-                            "BUY".to_string(),
-                            format!("{:.6}", candle.close),
-                            format!("{:.2}", 0.0_f64),
-                            format!("{:.2}", capital),
-                        ]);
+                        trade_rows.push(make_trade_row(
+                            trade_id,
+                            &candle.timestamp,
+                            "BUY",
+                            candle.close,
+                            0.0_f64,
+                            capital,
+                        ));
                     }
                 }
             }
@@ -66,28 +89,27 @@ pub fn run(data: Vec<Candle>) {
                     let trade_id = open_trade_id
                         .take()
                         .expect("sell should follow a logged buy");
-                    let capital = cash;
+                    let capital = calculate_capital(cash, position, exit_price);
 
                     println!(
                         "{} | id {} | SELL | price {:.6} | pnl {:.2} | capital {:.2}",
                         candle.timestamp, trade_id, exit_price, pnl, capital
                     );
 
-                    trade_rows.push(vec![
-                        trade_id.to_string(),
-                        candle.timestamp.clone(),
-                        "SELL".to_string(),
-                        format!("{:.6}", exit_price),
-                        format!("{:.2}", pnl),
-                        format!("{:.2}", capital),
-                    ]);
+                    trade_rows.push(make_trade_row(
+                        trade_id,
+                        &candle.timestamp,
+                        "SELL",
+                        exit_price,
+                        pnl,
+                        capital,
+                    ));
                 }
             }
             Signal::Hold => {}
         }
 
-        let held = position.map(|(_, size, _)| size).unwrap_or(0.0);
-        let capital = cash + held * candle.close;
+        let capital = calculate_capital(cash, position, candle.close);
         equity_curve.push((candle.timestamp.clone(), capital));
     }
 
@@ -103,21 +125,21 @@ pub fn run(data: Vec<Candle>) {
         let trade_id = open_trade_id
             .take()
             .expect("final sell should follow a logged buy");
-        let capital = cash;
+        let capital = calculate_capital(cash, position, exit_price);
 
         println!(
             "{} | id {} | SELL (final) | price {:.6} | pnl {:.2} | capital {:.2}",
             last.timestamp, trade_id, exit_price, pnl, capital
         );
 
-        trade_rows.push(vec![
-            trade_id.to_string(),
-            last.timestamp.clone(),
-            "SELL".to_string(),
-            format!("{:.6}", exit_price),
-            format!("{:.2}", pnl),
-            format!("{:.2}", capital),
-        ]);
+        trade_rows.push(make_trade_row(
+            trade_id,
+            &last.timestamp,
+            "SELL",
+            exit_price,
+            pnl,
+            capital,
+        ));
 
         if let Some(last_row) = equity_curve.last_mut() {
             *last_row = (last.timestamp.clone(), capital);
@@ -132,15 +154,19 @@ pub fn run(data: Vec<Candle>) {
         .map(|(ts, cap)| vec![ts.clone(), format!("{:.2}", cap)])
         .collect();
 
-    write_csv("logs/equity.csv", &["timestamp", "capital"], &equity_rows)
-        .expect("write logs/equity.csv");
+    let safe_name = strategy_name.replace(['/', '\\'], "_");
+    let equity_path = format!("logs/equity_{}.csv", safe_name);
+    let trades_path = format!("logs/trades_{}.csv", safe_name);
+
+    write_csv(&equity_path, &["timestamp", "capital"], &equity_rows)
+        .expect("write equity csv");
     write_csv(
-        "logs/trades.csv",
+        &trades_path,
         &["trade_id", "timestamp", "side", "price", "pnl", "capital"],
         &trade_rows,
     )
-    .expect("write logs/trades.csv");
+    .expect("write trades csv");
 
-    println!("Wrote logs/equity.csv");
-    println!("Wrote logs/trades.csv");
+    println!("Wrote {}", equity_path);
+    println!("Wrote {}", trades_path);
 }

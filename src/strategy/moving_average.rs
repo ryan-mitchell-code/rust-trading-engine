@@ -1,9 +1,6 @@
 use crate::models::Signal;
-use rand::Rng;
 
-pub trait Strategy {
-    fn next(&mut self, price: f64) -> Signal;
-}
+use super::Strategy;
 
 pub struct MovingAverage {
     short: usize,
@@ -70,25 +67,51 @@ impl Strategy for MovingAverage {
     }
 }
 
-/// Picks Buy, Sell, or Hold at random each bar (for experiments / baselines).
-pub struct RandomStrategy {
-    rng: rand::rngs::ThreadRng,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl RandomStrategy {
-    pub fn new() -> Self {
-        Self {
-            rng: rand::thread_rng(),
+    fn assert_hold(s: Signal) {
+        assert!(matches!(s, Signal::Hold));
+    }
+
+    #[test]
+    fn holds_while_insufficient_history() {
+        let mut ma = MovingAverage::new(2, 5);
+        for _ in 0..4 {
+            assert_hold(ma.next(100.0));
         }
     }
-}
 
-impl Strategy for RandomStrategy {
-    fn next(&mut self, _price: f64) -> Signal {
-        match self.rng.gen_range(0..3) {
-            0 => Signal::Buy,
-            1 => Signal::Sell,
-            _ => Signal::Hold,
+    #[test]
+    fn first_bar_at_long_length_still_hold_without_prior_averages() {
+        let mut ma = MovingAverage::new(2, 3);
+        assert_hold(ma.next(10.0));
+        assert_hold(ma.next(10.0));
+        // Third bar: enough points for averages, but no previous short/long yet
+        assert_hold(ma.next(10.0));
+    }
+
+    #[test]
+    fn produces_buy_on_short_crossing_above_long() {
+        let mut ma = MovingAverage::new(2, 3);
+        assert_hold(ma.next(10.0));
+        assert_hold(ma.next(10.0));
+        assert_hold(ma.next(10.0));
+        let s = ma.next(12.0);
+        assert!(matches!(s, Signal::Buy));
+    }
+
+    #[test]
+    fn signals_are_always_buy_sell_or_hold() {
+        let mut ma = MovingAverage::new(2, 3);
+        let prices = [10.0, 11.0, 12.0, 11.0, 10.0, 9.0, 8.0, 20.0, 21.0];
+        for p in prices {
+            let s = ma.next(p);
+            assert!(
+                matches!(s, Signal::Buy | Signal::Sell | Signal::Hold),
+                "unexpected signal variant"
+            );
         }
     }
 }

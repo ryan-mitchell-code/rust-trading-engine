@@ -13,6 +13,10 @@ fn calculate_capital(cash: f64, position: Option<Position>, mark_price: f64) -> 
     cash + held * mark_price
 }
 
+fn realized_pnl(size: f64, exit_price: f64, allocation: f64) -> f64 {
+    size * exit_price - allocation
+}
+
 fn make_trade_row(
     trade_id: u32,
     timestamp: &str,
@@ -81,7 +85,7 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
                 if let Some((_, size, allocation)) = position.take() {
                     let exit_price = candle.close;
                     let proceeds = size * exit_price;
-                    let pnl = proceeds - allocation;
+                    let pnl = realized_pnl(size, exit_price, allocation);
 
                     cash += proceeds;
                     trades += 1;
@@ -117,7 +121,7 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
         let last = data.last().expect("data not empty");
         let exit_price = last.close;
         let proceeds = size * exit_price;
-        let pnl = proceeds - allocation;
+        let pnl = realized_pnl(size, exit_price, allocation);
 
         cash += proceeds;
         trades += 1;
@@ -169,4 +173,80 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
 
     println!("Wrote {}", equity_path);
     println!("Wrote {}", trades_path);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EPS: f64 = f64::EPSILON * 10.0;
+
+    fn assert_close(a: f64, b: f64) {
+        assert!(
+            (a - b).abs() < EPS,
+            "expected {:.12}, got {:.12}",
+            b,
+            a
+        );
+    }
+
+    #[test]
+    fn calculate_capital_no_position() {
+        assert_close(calculate_capital(10_000.0, None, 50.0), 10_000.0);
+    }
+
+    #[test]
+    fn calculate_capital_mark_to_market() {
+        let position = Some((100.0, 2.0, 200.0));
+        // cash 8_000 + 2 units * mark 110 = 8_220
+        assert_close(calculate_capital(8_000.0, position, 110.0), 8_220.0);
+    }
+
+    #[test]
+    fn realized_pnl_profit() {
+        // 10 units @ exit 11, allocation 100 → proceeds 110, pnl +10
+        assert_close(realized_pnl(10.0, 11.0, 100.0), 10.0);
+    }
+
+    #[test]
+    fn realized_pnl_loss() {
+        // 10 units @ exit 9, allocation 100 → pnl -10
+        assert_close(realized_pnl(10.0, 9.0, 100.0), -10.0);
+    }
+
+    #[test]
+    fn realized_pnl_breakeven() {
+        assert_close(realized_pnl(5.0, 40.0, 200.0), 0.0);
+    }
+
+    /// One round-trip: open with 10% of cash, close at a higher price; no engine/strategy/IO.
+    #[test]
+    fn trade_lifecycle_buy_then_sell() {
+        let mut cash = 10_000.0;
+        let entry_price = 2_000.0;
+        let allocation = cash * POSITION_FRACTION;
+        let size = allocation / entry_price;
+        cash -= allocation;
+        let mut position: Option<Position> = Some((entry_price, size, allocation));
+
+        assert_close(calculate_capital(cash, position, entry_price), 10_000.0);
+
+        let exit_price = 2_200.0;
+        let (sz, alloc) = match position.take() {
+            Some((ep, s, a)) => {
+                assert_close(ep, entry_price);
+                (s, a)
+            }
+            None => panic!("expected open position"),
+        };
+
+        let pnl = realized_pnl(sz, exit_price, alloc);
+        let proceeds = sz * exit_price;
+        cash += proceeds;
+
+        assert_close(pnl, 100.0);
+        assert_close(cash, 10_100.0);
+        assert!(position.is_none());
+        assert_close(calculate_capital(cash, position, exit_price), 10_100.0);
+    }
 }

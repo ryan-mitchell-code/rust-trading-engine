@@ -108,6 +108,33 @@ Example:
 - Avoid:
   unnecessary `.filter(...)` when state already guarantees validity
 
+## Testing Rules
+
+- All core logic must have unit tests
+- Add tests when introducing new functionality
+- Prefer testing behaviour over implementation details
+
+### Strategy Testing
+
+- Strategies should be tested independently of the engine
+- Tests should verify signal behaviour, not profitability
+- Avoid relying on randomness in tests (use deterministic inputs where possible)
+
+### Engine Testing
+
+- Test small components (e.g. capital calculation, pnl)
+- Avoid testing full engine loops initially
+
+### General
+
+- Tests should be:
+
+  - simple
+  - deterministic
+  - fast
+
+- Do not couple tests to file I/O or CSV output
+
 ## Documentation Rules
 
 When introducing new Rust concepts:

@@ -146,3 +146,53 @@ Lower returns with smaller drawdowns can be easier to operate and often more rel
 - Max drawdown is tracked in `Metrics`
 - It is updated on each equity update via `update_equity(equity)`
 - It is used to compare strategy risk profiles
+
+## 📐 Sharpe Ratio
+
+The Sharpe ratio summarizes **risk-adjusted** return: how much return you get per unit of **volatility** in returns (not per unit of profit alone).
+
+### Formula (conceptual)
+
+`sharpe_ratio = mean_return / standard_deviation_of_returns`
+
+This project uses a **simplified** form: the risk-free rate is treated as **zero**, and returns are built from the **equity curve** (see below).
+
+### Interpretation
+
+- **Higher** Sharpe → returns are more **consistent** relative to how much they bounce around.
+- **Lower** Sharpe → returns are **more volatile** or **less stable** relative to their mean (including cases where the mean is small).
+
+### Intuition
+
+Two strategies can end with similar profit, but:
+
+- **Smooth, steady** equity growth tends to produce a **higher** Sharpe (lower volatility of returns).
+- **Large swings** in equity produce a **lower** Sharpe (higher volatility of returns).
+
+So the Sharpe ratio **rewards steadiness** and **penalizes choppy** paths, not just the ending balance.
+
+### Example
+
+| Strategy | Avg return | Volatility (std dev) | Sharpe (illustrative) |
+|----------|------------|----------------------|-------------------------|
+| A        | 1%         | 0.5%                 | 2.0                     |
+| B        | 1%         | 2%                   | 0.5                     |
+
+Same average return, but **A** is preferable on a risk-adjusted basis because volatility is lower.
+
+### Notes
+
+- **Risk-free rate = 0** here (common simplification in small backtests).
+- **Sensitive** to outliers and to how often you sample the equity curve (each bar is one observation).
+- A **full** institutional Sharpe often **annualizes** returns and volatility; this codebase keeps a **simple per-period** ratio for clarity.
+
+### In This Project
+
+- Built from the **equity curve** collected during `engine::run`.
+- **Simple returns** between consecutive points: `(E_t - E_{t-1}) / E_{t-1}` when the prior equity is positive.
+- **Sample** standard deviation of those returns (when there are enough points); ratio is **0** if volatility is negligible or there are too few returns (safe division).
+- Stored as `sharpe_ratio` on `ResultSummary` and shown in the **comparison table** in `main`.
+
+### Key Insight
+
+**Profit alone is not enough.** A strategy with stable, repeatable growth is often easier to rely on than one with higher but more **volatile** equity paths—Sharpe is one way to make that trade-off visible.

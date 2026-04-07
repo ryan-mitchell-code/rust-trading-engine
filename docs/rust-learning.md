@@ -8,8 +8,9 @@ This document captures key Rust concepts learned while building a trading backte
 2. [Option and representing absence](#2-option-and-representing-absence)
 3. [Strategy logic: state and signals](#3-strategy-logic-state-and-signals)
 4. [Backtesting engine patterns](#4-backtesting-engine-patterns)
-5. [Takeaways](#5-takeaways)
-6. [Next topics](#6-next-topics-to-explore)
+5. [Testing in Rust](#5-testing-in-rust)
+6. [Takeaways](#6-takeaways)
+7. [Next topics](#7-next-topics-to-explore)
 
 ---
 
@@ -195,9 +196,87 @@ The following applies to `src/engine.rs`. Earlier sections cover `Option` in gen
 
 **Why:** Easier to test, extend, and reason about than one giant module.
 
+
 ---
 
-## 5. Takeaways
+## 5. Testing in Rust
+
+Rust has built-in support for tests via the `#[test]` attribute.
+
+Tests can live:
+
+- inline with the code (unit tests)
+- in a separate `tests/` directory (integration tests)
+
+### Unit tests (inline)
+
+**What:** Tests inside the same file, usually under:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+}
+```
+
+**How this project uses it:**
+
+- `engine` tests for capital and PnL helpers
+- `strategy` tests for signal behaviour (`moving_average`, `random`)
+
+**Why it matters:**
+
+- Can test private functions directly
+- Keeps tests close to logic
+- Encourages small, focused behaviour checks
+
+### Integration tests (concept)
+
+**What:** Tests in `tests/` such as `tests/engine_tests.rs`.
+
+**Key difference:** They only use public APIs, not private internals.
+
+**When to use:**
+
+- Full workflows
+- Cross-module interactions
+- End-to-end behaviour validation
+
+### Testing floating-point values
+
+**Problem:** `f64` values should not be compared with `==` in tests.
+
+**How this project handles it:** A small helper like `assert_close(a, b)` with tolerance.
+
+**Why it matters:** Avoids flaky tests caused by precision noise.
+
+### Testing strategy behaviour
+
+**Key idea:** Test behaviour, not profitability.
+
+- `MovingAverage`: hold before enough data, then emit valid crossover signals
+- `RandomStrategy`: always returns a valid `Signal`; tests should not assert exact random sequences
+
+This keeps strategy tests stable and meaningful.
+
+### Separation of concerns in tests
+
+- Engine tests: capital and PnL logic
+- Strategy tests: signal generation
+- Avoid coupling unit tests to CSV/file I/O or full loop integration
+
+This keeps tests fast, deterministic, and easy to debug.
+
+### Deterministic testing
+
+- Use fixed numeric inputs for calculation tests
+- Avoid randomness in assertions
+- For random strategies, verify output validity and no panic, not exact outcomes
+
+
+---
+
+## 6. Takeaways
 
 - **Ownership and borrowing** — reuse data (e.g. candle history) safely without hidden copies.
 - **`Option`** — model missing data and open/flat state explicitly; pair with `if let` / `match`; avoid careless `unwrap()`.
@@ -206,7 +285,7 @@ The following applies to `src/engine.rs`. Earlier sections cover `Option` in gen
 
 ---
 
-## 6. Next topics to explore
+## 7. Next topics to explore
 
 - `Result<T, E>` (error handling)
 - Lifetimes (advanced borrowing)

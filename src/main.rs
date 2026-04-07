@@ -28,9 +28,10 @@ fn run_random(candles: &[Candle], verbose: bool) -> ResultSummary {
 fn print_comparison_table(results: &[ResultSummary]) {
     println!();
     println!(
-        "{:<24} {:>8} {:>14} {:>12} {:>12} {:>14} {:>12} {:>12}",
+        "{:<24} {:>8} {:>10} {:>14} {:>12} {:>12} {:>14} {:>12} {:>12}",
         "Strategy",
         "Trades",
+        "Sharpe",
         "Final Capital",
         "Total PnL",
         "Avg PnL",
@@ -38,12 +39,13 @@ fn print_comparison_table(results: &[ResultSummary]) {
         "Max DD %",
         "Win Rate %"
     );
-    println!("{:-<115}", "");
+    println!("{:-<128}", "");
     for s in results {
         println!(
-            "{:<24} {:>8} {:>14.2} {:>12.2} {:>12.2} {:>14.2} {:>12.2} {:>12.2}",
+            "{:<24} {:>8} {:>10.4} {:>14.2} {:>12.2} {:>12.2} {:>14.2} {:>12.2} {:>12.2}",
             s.strategy_name,
             s.total_trades,
+            s.sharpe_ratio,
             s.final_capital,
             s.total_pnl,
             s.avg_pnl,

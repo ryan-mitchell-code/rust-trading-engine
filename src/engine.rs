@@ -18,7 +18,44 @@ fn realized_pnl(size: f64, exit_price: f64, allocation: f64) -> f64 {
     size * exit_price - allocation
 }
 
-/// Aggregated statistics for one backtest run (caller may only use a subset, e.g. comparison table).
+fn sharpe_ratio_from_equity_curve(equity_curve: &[(String, f64)]) -> f64 {
+    if equity_curve.len() < 2 {
+        return 0.0;
+    }
+
+    let mut returns: Vec<f64> = Vec::with_capacity(equity_curve.len() - 1);
+
+    for w in equity_curve.windows(2) {
+        let prev = w[0].1;
+        let curr = w[1].1;
+
+        debug_assert!(prev > 0.0, "equity should always be positive");
+
+        returns.push((curr - prev) / prev);
+    }
+
+    let n = returns.len();
+    if n < 2 {
+        return 0.0;
+    }
+
+    let mean = returns.iter().sum::<f64>() / n as f64;
+
+    let variance = returns
+        .iter()
+        .map(|r| (r - mean).powi(2))
+        .sum::<f64>()
+        / (n as f64 - 1.0);
+
+    let std_dev = variance.sqrt();
+
+    if std_dev <= f64::EPSILON {
+        0.0
+    } else {
+        mean / std_dev
+    }
+}
+
 #[allow(dead_code)]
 pub struct ResultSummary {
     pub strategy_name: String,
@@ -31,6 +68,7 @@ pub struct ResultSummary {
     pub avg_pnl: f64,
     pub peak_equity: f64,
     pub max_drawdown: f64,
+    pub sharpe_ratio: f64,
 }
 
 fn make_trade_row(
@@ -188,6 +226,8 @@ pub fn run<S: Strategy>(
     let last_close = data.last().map(|c| c.close).unwrap_or(0.0);
     let final_capital = calculate_capital(cash, &position, last_close);
 
+    let sharpe_ratio = sharpe_ratio_from_equity_curve(&equity_curve);
+
     let equity_rows: Vec<Vec<String>> = equity_curve
         .iter()
         .map(|(ts, cap)| vec![ts.clone(), format!("{:.2}", cap)])
@@ -217,6 +257,7 @@ pub fn run<S: Strategy>(
         avg_pnl: metrics.avg_pnl(),
         peak_equity: metrics.peak_equity(),
         max_drawdown: metrics.max_drawdown(),
+        sharpe_ratio,
     }
 }
 
@@ -262,6 +303,28 @@ mod tests {
     #[test]
     fn realized_pnl_breakeven() {
         assert_close(realized_pnl(5.0, 40.0, 200.0), 0.0);
+    }
+
+    #[test]
+    fn sharpe_ratio_flat_equity_is_zero() {
+        let curve = vec![
+            ("a".to_string(), 10_000.0),
+            ("b".to_string(), 10_000.0),
+            ("c".to_string(), 10_000.0),
+        ];
+        assert_close(sharpe_ratio_from_equity_curve(&curve), 0.0);
+    }
+
+    #[test]
+    fn sharpe_ratio_two_varying_returns() {
+        // returns ≈ 1% and -0.5% → mean ≈ 0.25%, sample std > 0 → finite ratio
+        let curve = vec![
+            ("a".to_string(), 10_000.0),
+            ("b".to_string(), 10_100.0),
+            ("c".to_string(), 10_049.5),
+        ];
+        let s = sharpe_ratio_from_equity_curve(&curve);
+        assert!(s.is_finite() && s > 0.0);
     }
 
     /// One round-trip: open with 10% of cash, close at a higher price; no engine/strategy/IO.

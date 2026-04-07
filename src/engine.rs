@@ -50,6 +50,9 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
     for candle in data {
         let signal = strategy.next(candle.close);
 
+        let mut buy_log: Option<(u32, String, f64)> = None;
+        let mut sell_log: Option<(u32, String, f64, f64)> = None;
+
         match signal {
             Signal::Buy => {
                 if position.is_none() {
@@ -64,21 +67,7 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
                         cash -= allocation;
                         position = Some((candle.close, size, allocation));
 
-                        let capital = calculate_capital(cash, &position, candle.close);
-
-                        println!(
-                            "{} | id {} | BUY | price {:.6} | pnl 0.00 | capital {:.2}",
-                            candle.timestamp, trade_id, candle.close, capital
-                        );
-
-                        trade_rows.push(make_trade_row(
-                            trade_id,
-                            &candle.timestamp,
-                            "BUY",
-                            candle.close,
-                            0.0_f64,
-                            capital,
-                        ));
+                        buy_log = Some((trade_id, candle.timestamp.clone(), candle.close));
                     }
                 }
             }
@@ -94,27 +83,46 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
                     let trade_id = open_trade_id
                         .take()
                         .expect("sell should follow a logged buy");
-                    let capital = calculate_capital(cash, &position, exit_price);
 
-                    println!(
-                        "{} | id {} | SELL | price {:.6} | pnl {:.2} | capital {:.2}",
-                        candle.timestamp, trade_id, exit_price, pnl, capital
-                    );
-
-                    trade_rows.push(make_trade_row(
-                        trade_id,
-                        &candle.timestamp,
-                        "SELL",
-                        exit_price,
-                        pnl,
-                        capital,
-                    ));
+                    sell_log = Some((trade_id, candle.timestamp.clone(), exit_price, pnl));
                 }
             }
             Signal::Hold => {}
         }
 
         let capital = calculate_capital(cash, &position, candle.close);
+
+        if let Some((trade_id, ref ts, price)) = buy_log {
+            println!(
+                "{} | id {} | BUY | price {:.6} | pnl 0.00 | capital {:.2}",
+                ts, trade_id, price, capital
+            );
+
+            trade_rows.push(make_trade_row(
+                trade_id,
+                ts,
+                "BUY",
+                price,
+                0.0_f64,
+                capital,
+            ));
+        }
+        if let Some((trade_id, ref ts, exit_price, pnl)) = sell_log {
+            println!(
+                "{} | id {} | SELL | price {:.6} | pnl {:.2} | capital {:.2}",
+                ts, trade_id, exit_price, pnl, capital
+            );
+
+            trade_rows.push(make_trade_row(
+                trade_id,
+                ts,
+                "SELL",
+                exit_price,
+                pnl,
+                capital,
+            ));
+        }
+
         metrics.update_equity(capital);
         equity_curve.push((candle.timestamp.clone(), capital));
     }
@@ -159,7 +167,11 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
     println!("Average PnL: {:.2}", metrics.avg_pnl());
     println!("Peak Equity: {:.2}", metrics.peak_equity());
     println!("Max Drawdown (%): {:.2}", metrics.max_drawdown() * 100.0);
-    println!("Final Capital: {:.2}", cash);
+    let last_close = data.last().map(|c| c.close).unwrap_or(0.0);
+    println!(
+        "Final Capital: {:.2}",
+        calculate_capital(cash, &position, last_close)
+    );
 
     let equity_rows: Vec<Vec<String>> = equity_curve
         .iter()

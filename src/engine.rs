@@ -18,7 +18,8 @@ fn realized_pnl(size: f64, exit_price: f64, allocation: f64) -> f64 {
     size * exit_price - allocation
 }
 
-/// Aggregated statistics for one backtest run (printed by the caller).
+/// Aggregated statistics for one backtest run (caller may only use a subset, e.g. comparison table).
+#[allow(dead_code)]
 pub struct ResultSummary {
     pub strategy_name: String,
     pub equity_csv: String,

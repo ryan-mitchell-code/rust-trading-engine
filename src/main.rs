@@ -6,19 +6,52 @@ mod models;
 mod strategy;
 
 use engine::{run, ResultSummary};
+use models::Candle;
 use strategy::{MovingAverage, RandomStrategy};
 
-fn print_run_report(s: &ResultSummary) {
-    println!("{}", s.strategy_name);
-    println!("  Wrote {}", s.equity_csv);
-    println!("  Wrote {}", s.trades_csv);
-    println!("  Total Trades: {}", s.total_trades);
-    println!("  Win Rate (%): {:.2}", s.win_rate);
-    println!("  Total PnL: {:.2}", s.total_pnl);
-    println!("  Average PnL: {:.2}", s.avg_pnl);
-    println!("  Peak Equity: {:.2}", s.peak_equity);
-    println!("  Max Drawdown (%): {:.2}", s.max_drawdown * 100.0);
-    println!("  Final Capital: {:.2}", s.final_capital);
+const MOVING_AVERAGE_NAME: &str = "moving_average_5_20";
+const RANDOM_NAME: &str = "random";
+
+fn run_moving_average(candles: &[Candle], verbose: bool) -> ResultSummary {
+    run(
+        candles,
+        MovingAverage::new(5, 20),
+        MOVING_AVERAGE_NAME,
+        verbose,
+    )
+}
+
+fn run_random(candles: &[Candle], verbose: bool) -> ResultSummary {
+    run(candles, RandomStrategy::new(), RANDOM_NAME, verbose)
+}
+
+fn print_comparison_table(results: &[ResultSummary]) {
+    println!();
+    println!(
+        "{:<24} {:>8} {:>14} {:>12} {:>12} {:>14} {:>12} {:>12}",
+        "Strategy",
+        "Trades",
+        "Final Capital",
+        "Total PnL",
+        "Avg PnL",
+        "Peak Equity",
+        "Max DD %",
+        "Win Rate %"
+    );
+    println!("{:-<115}", "");
+    for s in results {
+        println!(
+            "{:<24} {:>8} {:>14.2} {:>12.2} {:>12.2} {:>14.2} {:>12.2} {:>12.2}",
+            s.strategy_name,
+            s.total_trades,
+            s.final_capital,
+            s.total_pnl,
+            s.avg_pnl,
+            s.peak_equity,
+            s.max_drawdown * 100.0,
+            s.win_rate
+        );
+    }
 }
 
 fn main() {
@@ -28,12 +61,15 @@ fn main() {
 
     let candles = data::load_csv("data/formatted_btc.csv");
 
-    let name_ma = "moving_average_5_20";
-    let ma = run(&candles, MovingAverage::new(5, 20), name_ma, verbose);
-    print_run_report(&ma);
+    let strategies: Vec<fn(&[Candle], bool) -> ResultSummary> =
+        vec![run_moving_average, run_random];
 
-    println!();
-    let name_rnd = "random";
-    let rnd = run(&candles, RandomStrategy::new(), name_rnd, verbose);
-    print_run_report(&rnd);
+    let mut results: Vec<ResultSummary> = strategies
+        .into_iter()
+        .map(|run_strategy| run_strategy(&candles, verbose))
+        .collect();
+
+    results.sort_by(|a, b| b.final_capital.total_cmp(&a.final_capital));
+
+    print_comparison_table(&results);
 }

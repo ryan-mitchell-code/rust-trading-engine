@@ -1,6 +1,7 @@
 mod csv;
 mod data;
 mod engine;
+mod metrics;
 mod models;
 mod strategy;
 

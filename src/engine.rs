@@ -1,4 +1,5 @@
 use crate::csv::write_csv;
+use crate::metrics::Metrics;
 use crate::models::{Candle, Signal};
 use crate::strategy::Strategy;
 
@@ -8,8 +9,8 @@ const POSITION_FRACTION: f64 = 0.10;
 /// Open position: `(entry_price per unit, size in units, cash allocated at entry)`.
 type Position = (f64, f64, f64);
 
-fn calculate_capital(cash: f64, position: Option<Position>, mark_price: f64) -> f64 {
-    let held = position.map(|(_, size, _)| size).unwrap_or(0.0);
+fn calculate_capital(cash: f64, position: &Option<Position>, mark_price: f64) -> f64 {
+    let held = position.as_ref().map(|(_, size, _)| *size).unwrap_or(0.0);
     cash + held * mark_price
 }
 
@@ -42,7 +43,7 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
     let mut position: Option<Position> = None;
     let mut open_trade_id: Option<u32> = None;
     let mut next_trade_id: u32 = 1;
-    let mut trades = 0;
+    let mut metrics = Metrics::new(INITIAL_CAPITAL);
     let mut trade_rows: Vec<Vec<String>> = Vec::new();
     let mut equity_curve: Vec<(String, f64)> = Vec::with_capacity(data.len());
 
@@ -63,7 +64,7 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
                         cash -= allocation;
                         position = Some((candle.close, size, allocation));
 
-                        let capital = calculate_capital(cash, position, candle.close);
+                        let capital = calculate_capital(cash, &position, candle.close);
 
                         println!(
                             "{} | id {} | BUY | price {:.6} | pnl 0.00 | capital {:.2}",
@@ -88,12 +89,12 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
                     let pnl = realized_pnl(size, exit_price, allocation);
 
                     cash += proceeds;
-                    trades += 1;
+                    metrics.record_trade(pnl);
 
                     let trade_id = open_trade_id
                         .take()
                         .expect("sell should follow a logged buy");
-                    let capital = calculate_capital(cash, position, exit_price);
+                    let capital = calculate_capital(cash, &position, exit_price);
 
                     println!(
                         "{} | id {} | SELL | price {:.6} | pnl {:.2} | capital {:.2}",
@@ -113,7 +114,8 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
             Signal::Hold => {}
         }
 
-        let capital = calculate_capital(cash, position, candle.close);
+        let capital = calculate_capital(cash, &position, candle.close);
+        metrics.update_equity(capital);
         equity_curve.push((candle.timestamp.clone(), capital));
     }
 
@@ -124,12 +126,12 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
         let pnl = realized_pnl(size, exit_price, allocation);
 
         cash += proceeds;
-        trades += 1;
+        metrics.record_trade(pnl);
 
         let trade_id = open_trade_id
             .take()
             .expect("final sell should follow a logged buy");
-        let capital = calculate_capital(cash, position, exit_price);
+        let capital = calculate_capital(cash, &position, exit_price);
 
         println!(
             "{} | id {} | SELL (final) | price {:.6} | pnl {:.2} | capital {:.2}",
@@ -148,9 +150,15 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
         if let Some(last_row) = equity_curve.last_mut() {
             *last_row = (last.timestamp.clone(), capital);
         }
+        metrics.update_equity(capital);
     }
 
-    println!("Total Trades: {}", trades);
+    println!("Total Trades: {}", metrics.trades());
+    println!("Win Rate (%): {:.2}", metrics.win_rate());
+    println!("Total PnL: {:.2}", metrics.total_pnl());
+    println!("Average PnL: {:.2}", metrics.avg_pnl());
+    println!("Peak Equity: {:.2}", metrics.peak_equity());
+    println!("Max Drawdown (%): {:.2}", metrics.max_drawdown() * 100.0);
     println!("Final Capital: {:.2}", cash);
 
     let equity_rows: Vec<Vec<String>> = equity_curve
@@ -192,14 +200,14 @@ mod tests {
 
     #[test]
     fn calculate_capital_no_position() {
-        assert_close(calculate_capital(10_000.0, None, 50.0), 10_000.0);
+        assert_close(calculate_capital(10_000.0, &None, 50.0), 10_000.0);
     }
 
     #[test]
     fn calculate_capital_mark_to_market() {
         let position = Some((100.0, 2.0, 200.0));
         // cash 8_000 + 2 units * mark 110 = 8_220
-        assert_close(calculate_capital(8_000.0, position, 110.0), 8_220.0);
+        assert_close(calculate_capital(8_000.0, &position, 110.0), 8_220.0);
     }
 
     #[test]
@@ -229,7 +237,7 @@ mod tests {
         cash -= allocation;
         let mut position: Option<Position> = Some((entry_price, size, allocation));
 
-        assert_close(calculate_capital(cash, position, entry_price), 10_000.0);
+        assert_close(calculate_capital(cash, &position, entry_price), 10_000.0);
 
         let exit_price = 2_200.0;
         let (sz, alloc) = match position.take() {
@@ -247,6 +255,6 @@ mod tests {
         assert_close(pnl, 100.0);
         assert_close(cash, 10_100.0);
         assert!(position.is_none());
-        assert_close(calculate_capital(cash, position, exit_price), 10_100.0);
+        assert_close(calculate_capital(cash, &position, exit_price), 10_100.0);
     }
 }

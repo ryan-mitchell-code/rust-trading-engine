@@ -18,6 +18,20 @@ fn realized_pnl(size: f64, exit_price: f64, allocation: f64) -> f64 {
     size * exit_price - allocation
 }
 
+/// Aggregated statistics for one backtest run (printed by the caller).
+pub struct ResultSummary {
+    pub strategy_name: String,
+    pub equity_csv: String,
+    pub trades_csv: String,
+    pub final_capital: f64,
+    pub total_pnl: f64,
+    pub total_trades: u32,
+    pub win_rate: f64,
+    pub avg_pnl: f64,
+    pub peak_equity: f64,
+    pub max_drawdown: f64,
+}
+
 fn make_trade_row(
     trade_id: u32,
     timestamp: &str,
@@ -36,9 +50,12 @@ fn make_trade_row(
     ]
 }
 
-pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
-    println!("=== {} ===", strategy_name);
-
+pub fn run<S: Strategy>(
+    data: &[Candle],
+    mut strategy: S,
+    strategy_name: &str,
+    verbose: bool,
+) -> ResultSummary {
     let mut cash = INITIAL_CAPITAL;
     let mut position: Option<Position> = None;
     let mut open_trade_id: Option<u32> = None;
@@ -93,10 +110,12 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
         let capital = calculate_capital(cash, &position, candle.close);
 
         if let Some((trade_id, ref ts, price)) = buy_log {
-            println!(
-                "{} | id {} | BUY | price {:.6} | pnl 0.00 | capital {:.2}",
-                ts, trade_id, price, capital
-            );
+            if verbose {
+                println!(
+                    "{} | id {} | BUY | price {:.6} | pnl 0.00 | capital {:.2}",
+                    ts, trade_id, price, capital
+                );
+            }
 
             trade_rows.push(make_trade_row(
                 trade_id,
@@ -108,10 +127,12 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
             ));
         }
         if let Some((trade_id, ref ts, exit_price, pnl)) = sell_log {
-            println!(
-                "{} | id {} | SELL | price {:.6} | pnl {:.2} | capital {:.2}",
-                ts, trade_id, exit_price, pnl, capital
-            );
+            if verbose {
+                println!(
+                    "{} | id {} | SELL | price {:.6} | pnl {:.2} | capital {:.2}",
+                    ts, trade_id, exit_price, pnl, capital
+                );
+            }
 
             trade_rows.push(make_trade_row(
                 trade_id,
@@ -141,10 +162,12 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
             .expect("final sell should follow a logged buy");
         let capital = calculate_capital(cash, &position, exit_price);
 
-        println!(
-            "{} | id {} | SELL (final) | price {:.6} | pnl {:.2} | capital {:.2}",
-            last.timestamp, trade_id, exit_price, pnl, capital
-        );
+        if verbose {
+            println!(
+                "{} | id {} | SELL (final) | price {:.6} | pnl {:.2} | capital {:.2}",
+                last.timestamp, trade_id, exit_price, pnl, capital
+            );
+        }
 
         trade_rows.push(make_trade_row(
             trade_id,
@@ -161,17 +184,8 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
         metrics.update_equity(capital);
     }
 
-    println!("Total Trades: {}", metrics.trades());
-    println!("Win Rate (%): {:.2}", metrics.win_rate());
-    println!("Total PnL: {:.2}", metrics.total_pnl());
-    println!("Average PnL: {:.2}", metrics.avg_pnl());
-    println!("Peak Equity: {:.2}", metrics.peak_equity());
-    println!("Max Drawdown (%): {:.2}", metrics.max_drawdown() * 100.0);
     let last_close = data.last().map(|c| c.close).unwrap_or(0.0);
-    println!(
-        "Final Capital: {:.2}",
-        calculate_capital(cash, &position, last_close)
-    );
+    let final_capital = calculate_capital(cash, &position, last_close);
 
     let equity_rows: Vec<Vec<String>> = equity_curve
         .iter()
@@ -191,8 +205,18 @@ pub fn run<S: Strategy>(data: &[Candle], mut strategy: S, strategy_name: &str) {
     )
     .expect("write trades csv");
 
-    println!("Wrote {}", equity_path);
-    println!("Wrote {}", trades_path);
+    ResultSummary {
+        strategy_name: strategy_name.to_string(),
+        equity_csv: equity_path,
+        trades_csv: trades_path,
+        final_capital,
+        total_pnl: metrics.total_pnl(),
+        total_trades: metrics.trades(),
+        win_rate: metrics.win_rate(),
+        avg_pnl: metrics.avg_pnl(),
+        peak_equity: metrics.peak_equity(),
+        max_drawdown: metrics.max_drawdown(),
+    }
 }
 
 #[cfg(test)]

@@ -6,6 +6,10 @@ use crate::strategy::Strategy;
 const INITIAL_CAPITAL: f64 = 10_000.0;
 const POSITION_FRACTION: f64 = 0.10;
 
+const SHARPE_WEIGHT: f64 = 2.0;
+const RETURN_WEIGHT: f64 = 1.0;
+const DRAWDOWN_WEIGHT: f64 = 1.0;
+
 /// Open position: `(entry_price per unit, size in units, cash allocated at entry)`.
 type Position = (f64, f64, f64);
 
@@ -233,7 +237,9 @@ pub fn run<S: Strategy>(
     let max_drawdown = metrics.max_drawdown();
     let return_pct = (final_capital - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
     let drawdown_pct = max_drawdown * 100.0;
-    let score = (sharpe_ratio * 2.0) + return_pct - drawdown_pct;
+    let score = (sharpe_ratio * SHARPE_WEIGHT)
+        + (return_pct * RETURN_WEIGHT)
+        - (drawdown_pct * DRAWDOWN_WEIGHT);
 
     let equity_rows: Vec<Vec<String>> = equity_curve
         .iter()

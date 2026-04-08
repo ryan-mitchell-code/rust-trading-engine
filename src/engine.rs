@@ -69,6 +69,8 @@ pub struct ResultSummary {
     pub peak_equity: f64,
     pub max_drawdown: f64,
     pub sharpe_ratio: f64,
+    pub return_pct: f64,
+    pub score: f64,
 }
 
 fn make_trade_row(
@@ -228,6 +230,11 @@ pub fn run<S: Strategy>(
 
     let sharpe_ratio = sharpe_ratio_from_equity_curve(&equity_curve);
 
+    let max_drawdown = metrics.max_drawdown();
+    let return_pct = (final_capital - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
+    let drawdown_pct = max_drawdown * 100.0;
+    let score = (sharpe_ratio * 2.0) + return_pct - drawdown_pct;
+
     let equity_rows: Vec<Vec<String>> = equity_curve
         .iter()
         .map(|(ts, cap)| vec![ts.clone(), format!("{:.2}", cap)])
@@ -256,8 +263,10 @@ pub fn run<S: Strategy>(
         win_rate: metrics.win_rate(),
         avg_pnl: metrics.avg_pnl(),
         peak_equity: metrics.peak_equity(),
-        max_drawdown: metrics.max_drawdown(),
+        max_drawdown,
         sharpe_ratio,
+        return_pct,
+        score,
     }
 }
 

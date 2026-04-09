@@ -127,13 +127,13 @@ mod tests {
     fn tracks_drawdown_duration_below_peak() {
         let mut m = Metrics::new(100.0);
         m.update_equity(120.0); // new peak
-        assert_eq!(m.current_drawdown_duration(), 0);
+        assert_eq!(m.current_drawdown_duration, 0);
         m.update_equity(110.0);
-        assert_eq!(m.current_drawdown_duration(), 1);
+        assert_eq!(m.current_drawdown_duration, 1);
         m.update_equity(100.0);
-        assert_eq!(m.current_drawdown_duration(), 2);
+        assert_eq!(m.current_drawdown_duration, 2);
         m.update_equity(120.0); // back to peak (not above)
-        assert_eq!(m.current_drawdown_duration(), 0);
+        assert_eq!(m.current_drawdown_duration, 0);
     }
 
     #[test]

@@ -5,8 +5,7 @@ mod metrics;
 mod models;
 mod strategy;
 
-use engine::{run, ResultSummary};
-use models::Candle;
+use engine::{run, BacktestResult, ResultSummary};
 use strategy::{BuyAndHold, MovingAverage, RandomStrategy};
 
 const MOVING_AVERAGE_NAME: &str = "moving_average_5_20";
@@ -16,21 +15,20 @@ const SHARPE_WEIGHT: f64 = 2.0;
 const RETURN_WEIGHT: f64 = 1.0;
 const DRAWDOWN_WEIGHT: f64 = 1.0;
 
-fn run_moving_average(candles: &[Candle], verbose: bool) -> ResultSummary {
-    run(
-        candles,
-        MovingAverage::new(5, 20),
-        MOVING_AVERAGE_NAME,
-        verbose,
+fn write_backtest_outputs(bt: &BacktestResult) {
+    let equity_rows: Vec<Vec<String>> = bt
+        .equity_curve
+        .iter()
+        .map(|(ts, cap)| vec![ts.clone(), format!("{:.2}", cap)])
+        .collect();
+    csv::write_csv(&bt.summary.equity_csv, &["timestamp", "capital"], &equity_rows)
+        .expect("write equity csv");
+    csv::write_csv(
+        &bt.summary.trades_csv,
+        &["trade_id", "timestamp", "side", "price", "pnl", "capital"],
+        &bt.trades,
     )
-}
-
-fn run_random(candles: &[Candle], verbose: bool) -> ResultSummary {
-    run(candles, RandomStrategy::new(), RANDOM_NAME, verbose)
-}
-
-fn run_buy_and_hold(candles: &[Candle], verbose: bool) -> ResultSummary {
-    run(candles, BuyAndHold::new(), BUY_AND_HOLD_NAME, verbose)
+    .expect("write trades csv");
 }
 
 fn apply_scoring(results: &mut [ResultSummary]) {
@@ -124,12 +122,24 @@ fn main() {
 
     let candles = data::load_csv("data/formatted_btc.csv");
 
-    let strategies: Vec<fn(&[Candle], bool) -> ResultSummary> =
-        vec![run_moving_average, run_random, run_buy_and_hold];
+    let backtests: Vec<BacktestResult> = vec![
+        run(
+            &candles,
+            MovingAverage::new(5, 20),
+            MOVING_AVERAGE_NAME,
+            verbose,
+        ),
+        run(&candles, RandomStrategy::new(), RANDOM_NAME, verbose),
+        run(&candles, BuyAndHold::new(), BUY_AND_HOLD_NAME, verbose),
+    ];
 
-    let mut results: Vec<ResultSummary> = strategies
+    for bt in &backtests {
+        write_backtest_outputs(bt);
+    }
+
+    let mut results: Vec<ResultSummary> = backtests
         .into_iter()
-        .map(|run_strategy| run_strategy(&candles, verbose))
+        .map(|b| b.summary)
         .collect();
 
     let bh_return = results

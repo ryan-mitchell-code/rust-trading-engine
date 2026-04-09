@@ -1,4 +1,3 @@
-use crate::csv::write_csv;
 use crate::metrics::Metrics;
 use crate::models::{Candle, Signal};
 use crate::strategy::Strategy;
@@ -57,6 +56,7 @@ fn sharpe_ratio_from_equity_curve(equity_curve: &[(String, f64)]) -> f64 {
 }
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct ResultSummary {
     pub strategy_name: String,
     pub equity_csv: String,
@@ -77,6 +77,12 @@ pub struct ResultSummary {
     pub score_return_component: f64,
     pub score_drawdown_component: f64,
     pub score: f64,
+}
+
+pub struct BacktestResult {
+    pub summary: ResultSummary,
+    pub equity_curve: Vec<(String, f64)>,
+    pub trades: Vec<Vec<String>>,
 }
 
 impl Default for ResultSummary {
@@ -128,7 +134,7 @@ pub fn run<S: Strategy>(
     mut strategy: S,
     strategy_name: &str,
     verbose: bool,
-) -> ResultSummary {
+) -> BacktestResult {
     let mut cash = INITIAL_CAPITAL;
     let mut position: Option<Position> = None;
     let mut open_trade_id: Option<u32> = None;
@@ -265,40 +271,30 @@ pub fn run<S: Strategy>(
     let return_pct = (final_capital - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
     let drawdown_pct = max_drawdown * 100.0;
 
-    let equity_rows: Vec<Vec<String>> = equity_curve
-        .iter()
-        .map(|(ts, cap)| vec![ts.clone(), format!("{:.2}", cap)])
-        .collect();
-
     let safe_name = strategy_name.replace(['/', '\\'], "_");
     let equity_path = format!("logs/equity_{}.csv", safe_name);
     let trades_path = format!("logs/trades_{}.csv", safe_name);
 
-    write_csv(&equity_path, &["timestamp", "capital"], &equity_rows)
-        .expect("write equity csv");
-    write_csv(
-        &trades_path,
-        &["trade_id", "timestamp", "side", "price", "pnl", "capital"],
-        &trade_rows,
-    )
-    .expect("write trades csv");
-
-    ResultSummary {
-        strategy_name: strategy_name.to_string(),
-        equity_csv: equity_path,
-        trades_csv: trades_path,
-        final_capital,
-        total_pnl: metrics.total_pnl(),
-        total_trades: metrics.trades(),
-        win_rate: metrics.win_rate(),
-        avg_pnl: metrics.avg_pnl(),
-        peak_equity: metrics.peak_equity(),
-        max_drawdown,
-        max_drawdown_duration: metrics.max_drawdown_duration(),
-        return_pct,
-        drawdown_pct,
-        sharpe_ratio,
-        ..Default::default()
+    BacktestResult {
+        summary: ResultSummary {
+            strategy_name: strategy_name.to_string(),
+            equity_csv: equity_path,
+            trades_csv: trades_path,
+            final_capital,
+            total_pnl: metrics.total_pnl(),
+            total_trades: metrics.trades(),
+            win_rate: metrics.win_rate(),
+            avg_pnl: metrics.avg_pnl(),
+            peak_equity: metrics.peak_equity(),
+            max_drawdown,
+            max_drawdown_duration: metrics.max_drawdown_duration(),
+            return_pct,
+            drawdown_pct,
+            sharpe_ratio,
+            ..Default::default()
+        },
+        equity_curve,
+        trades: trade_rows,
     }
 }
 

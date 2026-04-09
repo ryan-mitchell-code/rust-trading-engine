@@ -33,33 +33,35 @@ fn run_buy_and_hold(candles: &[Candle], verbose: bool) -> ResultSummary {
 fn print_comparison_table(results: &[ResultSummary]) {
     println!();
     println!(
-        "{:<24} {:>10} {:>10} {:>10} {:>8} {:>14} {:>12} {:>12} {:>14} {:>12} {:>12}",
+        "{:<24} {:>10} {:>10} {:>10} {:>10} {:>8} {:>14} {:>12} {:>12} {:>14} {:>10} {:>12}",
         "Strategy",
-        "Score",
         "Return %",
+        "Drawdown %",
         "Sharpe",
+        "Score",
         "Trades",
         "Final Capital",
         "Total PnL",
         "Avg PnL",
         "Peak Equity",
-        "Max DD %",
+        "DD Bars",
         "Win Rate %"
     );
-    println!("{:-<140}", "");
+    println!("{:-<153}", "");
     for s in results {
         println!(
-            "{:<24} {:>10.2} {:>10.2} {:>10.4} {:>8} {:>14.2} {:>12.2} {:>12.2} {:>14.2} {:>12.2} {:>12.2}",
+            "{:<24} {:>10.2} {:>10.2} {:>10.4} {:>10.2} {:>8} {:>14.2} {:>12.2} {:>12.2} {:>14.2} {:>10} {:>12.2}",
             s.strategy_name,
-            s.score,
             s.return_pct,
+            s.drawdown_pct,
             s.sharpe_ratio,
+            s.score,
             s.total_trades,
             s.final_capital,
             s.total_pnl,
             s.avg_pnl,
             s.peak_equity,
-            s.max_drawdown * 100.0,
+            s.max_drawdown_duration,
             s.win_rate
         );
     }

@@ -4,6 +4,8 @@ pub struct Metrics {
     total_pnl: f64,
     peak_equity: f64,
     max_drawdown: f64,
+    current_drawdown_duration: u32,
+    max_drawdown_duration: u32,
 }
 
 impl Metrics {
@@ -14,6 +16,8 @@ impl Metrics {
             total_pnl: 0.0,
             peak_equity: starting_capital,
             max_drawdown: 0.0,
+            current_drawdown_duration: 0,
+            max_drawdown_duration: 0,
         }
     }
 
@@ -52,6 +56,14 @@ impl Metrics {
     pub fn update_equity(&mut self, equity: f64) {
         if equity > self.peak_equity {
             self.peak_equity = equity;
+            self.current_drawdown_duration = 0;
+        } else if equity < self.peak_equity {
+            self.current_drawdown_duration += 1;
+            if self.current_drawdown_duration > self.max_drawdown_duration {
+                self.max_drawdown_duration = self.current_drawdown_duration;
+            }
+        } else {
+            self.current_drawdown_duration = 0;
         }
 
         let drawdown = (self.peak_equity - equity) / self.peak_equity;
@@ -66,6 +78,14 @@ impl Metrics {
 
     pub fn max_drawdown(&self) -> f64 {
         self.max_drawdown
+    }
+
+    pub fn current_drawdown_duration(&self) -> u32 {
+        self.current_drawdown_duration
+    }
+
+    pub fn max_drawdown_duration(&self) -> u32 {
+        self.max_drawdown_duration
     }
 }
 
@@ -105,5 +125,33 @@ mod tests {
         m.update_equity(120.0); // 20% from new peak
 
         assert_close(m.max_drawdown(), 0.20);
+    }
+
+    #[test]
+    fn tracks_drawdown_duration_below_peak() {
+        let mut m = Metrics::new(100.0);
+        m.update_equity(120.0); // new peak
+        assert_eq!(m.current_drawdown_duration(), 0);
+        m.update_equity(110.0);
+        assert_eq!(m.current_drawdown_duration(), 1);
+        m.update_equity(100.0);
+        assert_eq!(m.current_drawdown_duration(), 2);
+        m.update_equity(120.0); // back to peak (not above)
+        assert_eq!(m.current_drawdown_duration(), 0);
+    }
+
+    #[test]
+    fn max_drawdown_duration_is_longest_streak() {
+        let mut m = Metrics::new(100.0);
+        m.update_equity(90.0); // 1 bar below
+        m.update_equity(110.0); // new peak, streak ends
+        m.update_equity(100.0);
+        m.update_equity(95.0);
+        m.update_equity(90.0);
+        m.update_equity(85.0); // 4 bars below peak 110
+        assert_eq!(m.max_drawdown_duration(), 4);
+        m.update_equity(120.0); // new peak
+        m.update_equity(119.0); // 1 bar
+        assert_eq!(m.max_drawdown_duration(), 4);
     }
 }

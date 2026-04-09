@@ -72,8 +72,10 @@ pub struct ResultSummary {
     pub avg_pnl: f64,
     pub peak_equity: f64,
     pub max_drawdown: f64,
-    pub sharpe_ratio: f64,
+    pub max_drawdown_duration: u32,
     pub return_pct: f64,
+    pub drawdown_pct: f64,
+    pub sharpe_ratio: f64,
     pub score: f64,
 }
 
@@ -233,7 +235,6 @@ pub fn run<S: Strategy>(
     let final_capital = calculate_capital(cash, &position, last_close);
 
     let sharpe_ratio = sharpe_ratio_from_equity_curve(&equity_curve);
-
     let max_drawdown = metrics.max_drawdown();
     let return_pct = (final_capital - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
     let drawdown_pct = max_drawdown * 100.0;
@@ -270,8 +271,10 @@ pub fn run<S: Strategy>(
         avg_pnl: metrics.avg_pnl(),
         peak_equity: metrics.peak_equity(),
         max_drawdown,
-        sharpe_ratio,
+        max_drawdown_duration: metrics.max_drawdown_duration(),
         return_pct,
+        drawdown_pct,
+        sharpe_ratio,
         score,
     }
 }

@@ -6,10 +6,6 @@ use crate::strategy::Strategy;
 const INITIAL_CAPITAL: f64 = 10_000.0;
 const POSITION_FRACTION: f64 = 0.10;
 
-const SHARPE_WEIGHT: f64 = 2.0;
-const RETURN_WEIGHT: f64 = 1.0;
-const DRAWDOWN_WEIGHT: f64 = 1.0;
-
 /// Open position: `(entry_price per unit, size in units, cash allocated at entry)`.
 type Position = (f64, f64, f64);
 
@@ -74,9 +70,39 @@ pub struct ResultSummary {
     pub max_drawdown: f64,
     pub max_drawdown_duration: u32,
     pub return_pct: f64,
+    pub relative_return: f64,
     pub drawdown_pct: f64,
     pub sharpe_ratio: f64,
+    pub score_sharpe_component: f64,
+    pub score_return_component: f64,
+    pub score_drawdown_component: f64,
     pub score: f64,
+}
+
+impl Default for ResultSummary {
+    fn default() -> Self {
+        Self {
+            strategy_name: String::new(),
+            equity_csv: String::new(),
+            trades_csv: String::new(),
+            final_capital: 0.0,
+            total_pnl: 0.0,
+            total_trades: 0,
+            win_rate: 0.0,
+            avg_pnl: 0.0,
+            peak_equity: 0.0,
+            max_drawdown: 0.0,
+            max_drawdown_duration: 0,
+            return_pct: 0.0,
+            relative_return: 0.0,
+            drawdown_pct: 0.0,
+            sharpe_ratio: 0.0,
+            score_sharpe_component: 0.0,
+            score_return_component: 0.0,
+            score_drawdown_component: 0.0,
+            score: 0.0,
+        }
+    }
 }
 
 fn make_trade_row(
@@ -238,9 +264,6 @@ pub fn run<S: Strategy>(
     let max_drawdown = metrics.max_drawdown();
     let return_pct = (final_capital - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
     let drawdown_pct = max_drawdown * 100.0;
-    let score = (sharpe_ratio * SHARPE_WEIGHT)
-        + (return_pct * RETURN_WEIGHT)
-        - (drawdown_pct * DRAWDOWN_WEIGHT);
 
     let equity_rows: Vec<Vec<String>> = equity_curve
         .iter()
@@ -275,7 +298,7 @@ pub fn run<S: Strategy>(
         return_pct,
         drawdown_pct,
         sharpe_ratio,
-        score,
+        ..Default::default()
     }
 }
 

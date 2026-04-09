@@ -80,10 +80,6 @@ impl Metrics {
         self.max_drawdown
     }
 
-    pub fn current_drawdown_duration(&self) -> u32 {
-        self.current_drawdown_duration
-    }
-
     pub fn max_drawdown_duration(&self) -> u32 {
         self.max_drawdown_duration
     }

@@ -1,6 +1,7 @@
 use crate::metrics::Metrics;
 use crate::models::{Candle, Signal};
 use crate::strategy::Strategy;
+use serde::Serialize;
 
 const INITIAL_CAPITAL: f64 = 10_000.0;
 const POSITION_FRACTION: f64 = 0.10;
@@ -56,7 +57,7 @@ fn sharpe_ratio_from_equity_curve(equity_curve: &[(String, f64)]) -> f64 {
 }
 
 #[allow(dead_code)]
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct ResultSummary {
     pub strategy_name: String,
     pub equity_csv: String,
@@ -79,6 +80,7 @@ pub struct ResultSummary {
     pub score: f64,
 }
 
+#[derive(Serialize)]
 pub struct BacktestResult {
     pub summary: ResultSummary,
     pub equity_curve: Vec<(String, f64)>,

@@ -8,6 +8,8 @@ mod strategy;
 use engine::{run, BacktestResult, ResultSummary};
 use strategy::{BuyAndHold, MovingAverage, RandomStrategy};
 
+const RESULTS_JSON_PATH: &str = "logs/results.json";
+
 const MOVING_AVERAGE_NAME: &str = "moving_average_5_20";
 const RANDOM_NAME: &str = "random";
 const BUY_AND_HOLD_NAME: &str = "buy_and_hold";
@@ -136,6 +138,9 @@ fn main() {
     for bt in &backtests {
         write_backtest_outputs(bt);
     }
+
+    let json = serde_json::to_string_pretty(&backtests).expect("serialize backtests");
+    std::fs::write(RESULTS_JSON_PATH, json).expect("write results.json");
 
     let mut results: Vec<ResultSummary> = backtests
         .into_iter()

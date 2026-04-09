@@ -136,3 +136,102 @@ A correct implementation does not imply a good strategy.
 - Add unit tests for core logic
 - Compare multiple strategies visually
 - Introduce simple performance metrics
+
+## Day 3 — Metrics, Risk, and Strategy Evaluation
+
+### What I built
+
+- Introduced a dedicated metrics system:
+
+  - Total trades
+  - Win rate
+  - Total and average PnL
+
+- Added risk-focused metrics:
+
+  - Max drawdown (%)
+  - Drawdown duration (DD bars)
+
+- Implemented Sharpe ratio using equity curve returns
+- Built a multi-strategy comparison system (“arena”)
+- Added Buy & Hold as a baseline benchmark
+- Introduced score-based ranking combining:
+
+  - Return
+  - Drawdown
+  - Sharpe ratio
+
+- Added score breakdown for transparency
+- Normalized metrics to ensure fair comparison
+- Refactored architecture:
+
+  - Engine produces raw metrics only
+  - Evaluation logic moved to main
+
+---
+
+### What I learned (Rust)
+
+- Separating computation from evaluation leads to cleaner architecture
+- Returning structured data is more powerful than printing directly
+- Keeping logic explicit improves debuggability and iteration speed
+- Small refactors (moving responsibilities) have large impact on clarity
+
+---
+
+### What I learned (Trading)
+
+- Profit alone is a poor measure of strategy quality
+- Drawdown is a critical risk metric, not just a side statistic
+- A strategy that “loses less” can be better than one that “wins more”
+- Sharpe ratio highlights consistency, not just outcome
+- Benchmarking against Buy & Hold is essential
+- Random strategies can outperform naive strategies in weak markets
+
+---
+
+### What I observed
+
+- My moving average strategy performed worse than both random and buy & hold
+- Random strategies sometimes outperform due to reduced exposure
+- Buy & Hold can remain in drawdown for the entire dataset in weak markets
+- Strategy evaluation is highly sensitive to how metrics are weighted
+
+---
+
+### What I got wrong
+
+- Initially treated metrics as outputs rather than inputs to decision-making
+- Assumed Sharpe ratio would be the primary driver of performance
+- Underestimated the importance of normalization when combining metrics
+- Mixed evaluation logic into the engine before refactoring
+
+---
+
+### Key insights
+
+A trading system is not just about generating trades.
+
+It is about:
+
+> **evaluating strategies correctly across return, risk, and consistency**
+
+and understanding the trade-offs between them.
+
+---
+
+### Next questions
+
+- How sensitive is ranking to scoring weights?
+- What makes a “good” strategy under different market conditions?
+- Can I design multiple scoring models and compare them?
+- How should I visualize these results effectively?
+
+---
+
+### Next steps
+
+- Refactor engine to return structured data (prepare for UI)
+- Experiment with different scoring models
+- Improve strategy quality (add new strategies)
+- Introduce a visualization layer (React)

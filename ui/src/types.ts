@@ -4,7 +4,6 @@
  */
 
 export interface ResultSummary {
-  strategy_name: string;
   equity_csv: string;
   trades_csv: string;
   final_capital: number;
@@ -28,10 +27,18 @@ export interface ResultSummary {
 /** `Vec<(String, f64)>` → JSON array of `[timestamp, capital]` pairs. */
 export type EquityCurve = [string, number][];
 
+/** Mirrors `DrawdownPoint` from `backend/src/engine.rs`. */
+export interface DrawdownPoint {
+  timestamp: string;
+  /** `(equity - peak) / peak`; ≤ 0 vs running peak. */
+  drawdown: number;
+}
+
 export interface BacktestResult {
-  /** Strategy id (mirrors `summary.strategy_name` from backend). */
+  /** Strategy id — stable key for this backtest (not duplicated under `summary`). */
   name: string;
   summary: ResultSummary;
   equity_curve: EquityCurve;
+  drawdown_curve: DrawdownPoint[];
   trades: string[][];
 }

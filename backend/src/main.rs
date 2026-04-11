@@ -6,7 +6,7 @@ mod models;
 mod paths;
 mod strategy;
 
-use engine::{run, BacktestResult, ResultSummary};
+use engine::{run, BacktestResult};
 use strategy::{BuyAndHold, MovingAverage, RandomStrategy};
 
 const MOVING_AVERAGE_NAME: &str = "moving_average_5_20";
@@ -32,21 +32,22 @@ fn write_backtest_outputs(bt: &BacktestResult) {
     .expect("write trades csv");
 }
 
-fn apply_scoring(results: &mut [ResultSummary]) {
-    let max_abs_sharpe = results
+fn apply_scoring(backtests: &mut [BacktestResult]) {
+    let max_abs_sharpe = backtests
         .iter()
-        .map(|r| r.sharpe_ratio.abs())
+        .map(|b| b.summary.sharpe_ratio.abs())
         .fold(0.0_f64, f64::max);
-    let max_abs_return = results
+    let max_abs_return = backtests
         .iter()
-        .map(|r| r.return_pct.abs())
+        .map(|b| b.summary.return_pct.abs())
         .fold(0.0_f64, f64::max);
-    let max_abs_drawdown = results
+    let max_abs_drawdown = backtests
         .iter()
-        .map(|r| r.drawdown_pct.abs())
+        .map(|b| b.summary.drawdown_pct.abs())
         .fold(0.0_f64, f64::max);
 
-    for r in results.iter_mut() {
+    for b in backtests.iter_mut() {
+        let r = &mut b.summary;
         let normalized_sharpe = if max_abs_sharpe > f64::EPSILON {
             r.sharpe_ratio / max_abs_sharpe
         } else {
@@ -71,7 +72,7 @@ fn apply_scoring(results: &mut [ResultSummary]) {
     }
 }
 
-fn print_comparison_table(results: &[ResultSummary]) {
+fn print_comparison_table(backtests: &[BacktestResult]) {
     println!();
     println!(
         "{:<24} {:>10} {:>10} {:>10} {:>10} {:>12} {:>12} {:>12} {:>10} {:>8} {:>14} {:>12} {:>12} {:>14} {:>10} {:>12}",
@@ -93,10 +94,11 @@ fn print_comparison_table(results: &[ResultSummary]) {
         "Win Rate %"
     );
     println!("{:-<201}", "");
-    for s in results {
+    for b in backtests {
+        let s = &b.summary;
         println!(
             "{:<24} {:>10.2} {:>10.2} {:>10.2} {:>10.4} {:>12.2} {:>12.2} {:>12.2} {:>10.2} {:>8} {:>14.2} {:>12.2} {:>12.2} {:>14.2} {:>10} {:>12.2}",
-            s.strategy_name,
+            b.name,
             s.return_pct,
             s.relative_return,
             s.drawdown_pct,
@@ -123,7 +125,7 @@ fn main() {
 
     let candles = data::load_csv(paths::data_file("formatted_btc.csv"));
 
-    let backtests: Vec<BacktestResult> = vec![
+    let mut backtests: Vec<BacktestResult> = vec![
         run(
             &candles,
             MovingAverage::new(5, 20),
@@ -138,41 +140,22 @@ fn main() {
         write_backtest_outputs(bt);
     }
 
-    let mut results: Vec<ResultSummary> = backtests
+    let bh_return = backtests
         .iter()
-        .map(|b| b.summary.clone())
-        .collect();
-
-    let bh_return = results
-        .iter()
-        .find(|r| r.strategy_name == BUY_AND_HOLD_NAME)
-        .expect("buy_and_hold in results")
+        .find(|b| b.name == BUY_AND_HOLD_NAME)
+        .expect("buy_and_hold in backtests")
+        .summary
         .return_pct;
-    for r in &mut results {
-        r.relative_return = r.return_pct - bh_return;
+    for bt in &mut backtests {
+        bt.summary.relative_return = bt.summary.return_pct - bh_return;
     }
 
-    apply_scoring(&mut results);
+    apply_scoring(&mut backtests);
 
-    results.sort_by(|a, b| b.score.total_cmp(&a.score));
+    backtests.sort_by(|a, b| b.summary.score.total_cmp(&a.summary.score));
 
-    let export: Vec<BacktestResult> = results
-        .iter()
-        .map(|summary| {
-            let bt = backtests
-                .iter()
-                .find(|b| b.summary.strategy_name == summary.strategy_name)
-                .expect("strategy in backtests");
-            BacktestResult {
-                name: bt.name.clone(),
-                summary: summary.clone(),
-                equity_curve: bt.equity_curve.clone(),
-                trades: bt.trades.clone(),
-            }
-        })
-        .collect();
-    let json = serde_json::to_string_pretty(&export).expect("serialize backtests");
+    let json = serde_json::to_string_pretty(&backtests).expect("serialize backtests");
     std::fs::write(paths::output_file("results.json"), json).expect("write results.json");
 
-    print_comparison_table(&results);
+    print_comparison_table(&backtests);
 }

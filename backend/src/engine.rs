@@ -19,6 +19,22 @@ fn realized_pnl(size: f64, exit_price: f64, allocation: f64) -> f64 {
     size * exit_price - allocation
 }
 
+/// Per-period (sample) Sharpe ratio from an equity curve — **timeframe-agnostic**.
+///
+/// For each consecutive pair of equity values, computes simple return  
+/// `(E_t - E_{t-1}) / E_{t-1}`, then returns `mean(returns) / sample_std_dev(returns)`
+/// (sample variance uses `n - 1` in the denominator).
+///
+/// **Semantics**
+///
+/// - This is a **per-period** Sharpe: the period is whatever spacing the curve has (bars,
+///   ticks, etc.). It does **not** assume daily, hourly, or any fixed calendar.
+/// - It is **not annualized**. Converting to an annualized Sharpe requires explicit
+///   assumptions (e.g. periods per year) and should be done outside this function.
+/// - Raw values are **not directly comparable** across backtests that use different bar
+///   spacing unless you normalize or annualize consistently.
+///
+/// Returns `0.0` when there are fewer than two returns, or when sample std dev is negligible.
 fn sharpe_ratio_from_equity_curve(equity_curve: &[(String, f64)]) -> f64 {
     if equity_curve.len() < 2 {
         return 0.0;
@@ -57,10 +73,39 @@ fn sharpe_ratio_from_equity_curve(equity_curve: &[(String, f64)]) -> f64 {
     }
 }
 
+/// One point on the drawdown series (aligned with `BacktestResult.equity_curve` timestamps).
+#[derive(Clone, Serialize)]
+pub struct DrawdownPoint {
+    pub timestamp: String,
+    /// `(equity - peak) / peak` for the running peak; 0 at new highs, negative underwater.
+    pub drawdown: f64,
+}
+
+/// Per-timestep drawdown vs running peak: `(equity - peak) / peak` (0 at new highs, negative underwater).
+fn drawdown_curve_from_equity(equity_curve: &[(String, f64)]) -> Vec<DrawdownPoint> {
+    if equity_curve.is_empty() {
+        return Vec::new();
+    }
+    let mut peak = equity_curve[0].1;
+    let mut out = Vec::with_capacity(equity_curve.len());
+    for (ts, eq) in equity_curve {
+        peak = peak.max(*eq);
+        let drawdown = if peak.abs() > f64::EPSILON {
+            (eq - peak) / peak
+        } else {
+            0.0
+        };
+        out.push(DrawdownPoint {
+            timestamp: ts.clone(),
+            drawdown,
+        });
+    }
+    out
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Serialize)]
 pub struct ResultSummary {
-    pub strategy_name: String,
     pub equity_csv: String,
     pub trades_csv: String,
     pub final_capital: f64,
@@ -74,6 +119,7 @@ pub struct ResultSummary {
     pub return_pct: f64,
     pub relative_return: f64,
     pub drawdown_pct: f64,
+    /// Per-period Sharpe from the equity curve (`mean / sample std dev` of step returns); not annualized. See [`sharpe_ratio_from_equity_curve`].
     pub sharpe_ratio: f64,
     pub score_sharpe_component: f64,
     pub score_return_component: f64,
@@ -83,17 +129,18 @@ pub struct ResultSummary {
 
 #[derive(Serialize)]
 pub struct BacktestResult {
-    /// Strategy id for API/UI (same string as `summary.strategy_name`).
+    /// Strategy id for API/UI and CSV basenames (stable key for this run).
     pub name: String,
     pub summary: ResultSummary,
     pub equity_curve: Vec<(String, f64)>,
+    /// Same length and timestamps as `equity_curve`; see [`DrawdownPoint`].
+    pub drawdown_curve: Vec<DrawdownPoint>,
     pub trades: Vec<Vec<String>>,
 }
 
 impl Default for ResultSummary {
     fn default() -> Self {
         Self {
-            strategy_name: String::new(),
             equity_csv: String::new(),
             trades_csv: String::new(),
             final_capital: 0.0,
@@ -272,6 +319,7 @@ pub fn run<S: Strategy>(
     let final_capital = calculate_capital(cash, &position, last_close);
 
     let sharpe_ratio = sharpe_ratio_from_equity_curve(&equity_curve);
+    let drawdown_curve = drawdown_curve_from_equity(&equity_curve);
     let max_drawdown = metrics.max_drawdown();
     let return_pct = (final_capital - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
     let drawdown_pct = max_drawdown * 100.0;
@@ -287,7 +335,6 @@ pub fn run<S: Strategy>(
     BacktestResult {
         name: strategy_name.to_string(),
         summary: ResultSummary {
-            strategy_name: strategy_name.to_string(),
             equity_csv: equity_path,
             trades_csv: trades_path,
             final_capital,
@@ -304,6 +351,7 @@ pub fn run<S: Strategy>(
             ..Default::default()
         },
         equity_curve,
+        drawdown_curve,
         trades: trade_rows,
     }
 }
@@ -360,6 +408,26 @@ mod tests {
             ("c".to_string(), 10_000.0),
         ];
         assert_close(sharpe_ratio_from_equity_curve(&curve), 0.0);
+    }
+
+    #[test]
+    fn drawdown_curve_empty_is_empty() {
+        assert!(drawdown_curve_from_equity(&[]).is_empty());
+    }
+
+    #[test]
+    fn drawdown_curve_peaks_zero_underwater_negative() {
+        let equity = vec![
+            ("t0".to_string(), 10_000.0),
+            ("t1".to_string(), 11_000.0),
+            ("t2".to_string(), 9_900.0),
+            ("t3".to_string(), 12_000.0),
+        ];
+        let dd = drawdown_curve_from_equity(&equity);
+        assert_close(dd[0].drawdown, 0.0);
+        assert_close(dd[1].drawdown, 0.0);
+        assert_close(dd[2].drawdown, (9_900.0 - 11_000.0) / 11_000.0);
+        assert_close(dd[3].drawdown, 0.0);
     }
 
     #[test]

@@ -3,12 +3,11 @@ mod data;
 mod engine;
 mod metrics;
 mod models;
+mod paths;
 mod strategy;
 
 use engine::{run, BacktestResult, ResultSummary};
 use strategy::{BuyAndHold, MovingAverage, RandomStrategy};
-
-const RESULTS_JSON_PATH: &str = "logs/results.json";
 
 const MOVING_AVERAGE_NAME: &str = "moving_average_5_20";
 const RANDOM_NAME: &str = "random";
@@ -122,7 +121,7 @@ fn main() {
         .skip(1)
         .any(|a| a == "-v" || a == "--verbose");
 
-    let candles = data::load_csv("data/formatted_btc.csv");
+    let candles = data::load_csv(paths::data_file("formatted_btc.csv"));
 
     let backtests: Vec<BacktestResult> = vec![
         run(
@@ -140,7 +139,7 @@ fn main() {
     }
 
     let json = serde_json::to_string_pretty(&backtests).expect("serialize backtests");
-    std::fs::write(RESULTS_JSON_PATH, json).expect("write results.json");
+    std::fs::write(paths::log_file("results.json"), json).expect("write results.json");
 
     let mut results: Vec<ResultSummary> = backtests
         .into_iter()

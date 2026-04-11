@@ -1,8 +1,9 @@
 use crate::models::Candle;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::path::Path;
 
-pub fn load_csv(path: &str) -> Vec<Candle> {
+pub fn load_csv<P: AsRef<Path>>(path: P) -> Vec<Candle> {
     let file = File::open(path).expect("Cannot open file");
     let reader = BufReader::new(file);
 

@@ -1,5 +1,6 @@
 use crate::metrics::Metrics;
 use crate::models::{Candle, Signal};
+use crate::paths;
 use crate::strategy::Strategy;
 use serde::Serialize;
 
@@ -274,8 +275,12 @@ pub fn run<S: Strategy>(
     let drawdown_pct = max_drawdown * 100.0;
 
     let safe_name = strategy_name.replace(['/', '\\'], "_");
-    let equity_path = format!("logs/equity_{}.csv", safe_name);
-    let trades_path = format!("logs/trades_{}.csv", safe_name);
+    let equity_path = paths::log_file(&format!("equity_{}.csv", safe_name))
+        .to_string_lossy()
+        .into_owned();
+    let trades_path = paths::log_file(&format!("trades_{}.csv", safe_name))
+        .to_string_lossy()
+        .into_owned();
 
     BacktestResult {
         summary: ResultSummary {

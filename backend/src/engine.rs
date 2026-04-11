@@ -83,6 +83,8 @@ pub struct ResultSummary {
 
 #[derive(Serialize)]
 pub struct BacktestResult {
+    /// Strategy id for API/UI (same string as `summary.strategy_name`).
+    pub name: String,
     pub summary: ResultSummary,
     pub equity_curve: Vec<(String, f64)>,
     pub trades: Vec<Vec<String>>,
@@ -275,14 +277,15 @@ pub fn run<S: Strategy>(
     let drawdown_pct = max_drawdown * 100.0;
 
     let safe_name = strategy_name.replace(['/', '\\'], "_");
-    let equity_path = paths::log_file(&format!("equity_{}.csv", safe_name))
+    let equity_path = paths::output_file(&format!("equity_{}.csv", safe_name))
         .to_string_lossy()
         .into_owned();
-    let trades_path = paths::log_file(&format!("trades_{}.csv", safe_name))
+    let trades_path = paths::output_file(&format!("trades_{}.csv", safe_name))
         .to_string_lossy()
         .into_owned();
 
     BacktestResult {
+        name: strategy_name.to_string(),
         summary: ResultSummary {
             strategy_name: strategy_name.to_string(),
             equity_csv: equity_path,

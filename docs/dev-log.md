@@ -34,8 +34,8 @@ Extended the system to simulate actual trades instead of just emitting signals.
 - Implemented trade logging with trade IDs
 - Exported:
 
-  - Equity curve (`logs/equity.csv`)
-  - Trade log (`logs/trades.csv`)
+  - Equity curve (`outputs/equity_*.csv`)
+  - Trade log (`outputs/trades_*.csv`)
 
 ---
 

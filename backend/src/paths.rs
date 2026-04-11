@@ -1,4 +1,5 @@
 //! Paths anchored at the workspace root (parent of `backend/`), independent of process cwd.
+//! Backtest artifacts go under `outputs/` at the repo root.
 
 use std::path::PathBuf;
 
@@ -13,6 +14,6 @@ pub fn data_file(name: &str) -> PathBuf {
     workspace_root().join("data").join(name)
 }
 
-pub fn log_file(name: &str) -> PathBuf {
-    workspace_root().join("logs").join(name)
+pub fn output_file(name: &str) -> PathBuf {
+    workspace_root().join("outputs").join(name)
 }

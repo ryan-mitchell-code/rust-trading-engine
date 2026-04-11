@@ -1,11 +1,85 @@
+import { useEffect, useState } from "react";
+import { EquityChart } from "./components/EquityChart.tsx";
+import { StrategyTable } from "./components/StrategyTable.tsx";
+import type { BacktestResult } from "./types.ts";
+
 export function App() {
+  const [results, setResults] = useState<BacktestResult[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/results.json")
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`${res.status} ${res.statusText}`);
+        }
+        return res.json() as Promise<BacktestResult[]>;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setError(null);
+          setResults(data);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          const message =
+            e instanceof Error ? e.message : "Failed to load results";
+          setError(message);
+          setResults(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="min-h-dvh bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 px-6 py-4">
-        <h1 className="text-lg font-semibold tracking-tight">Rust Trader</h1>
+      <header className="border-b border-slate-800 px-6 py-5">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+          Rust Trader
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Backtest overview — data from{" "}
+          <code className="text-slate-400">outputs/results.json</code>
+        </p>
       </header>
-      <main className="px-6 py-8">
-        <p className="text-sm text-slate-400">Dashboard coming soon.</p>
+
+      <main className="mx-auto max-w-6xl space-y-10 px-6 py-8">
+        {error !== null && (
+          <div
+            className="rounded-lg border border-amber-900/60 bg-amber-950/40 px-4 py-3 text-sm text-amber-200"
+            role="alert"
+          >
+            Could not load backtests: {error}
+          </div>
+        )}
+
+        {results === null && error === null && (
+          <p className="text-sm text-slate-500">Loading backtest results…</p>
+        )}
+
+        {results !== null && (
+          <>
+            <section className="space-y-3">
+              <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+                Strategy comparison
+              </h2>
+              <StrategyTable results={results} />
+            </section>
+
+            <section className="space-y-3">
+              <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+                Equity curves
+              </h2>
+              <EquityChart results={results} />
+            </section>
+          </>
+        )}
       </main>
     </div>
   );

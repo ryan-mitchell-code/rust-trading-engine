@@ -1,5 +1,17 @@
-/target
+# Rust / Cargo (crate lives in backend/)
+target/
 **/*.rs.bk
-.DS_Store
+
+# Environment
 .env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+
+# Generated backtest artifacts
+outputs/
+
+# Legacy output location (before outputs/)
 logs/

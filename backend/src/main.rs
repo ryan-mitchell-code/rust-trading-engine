@@ -138,12 +138,9 @@ fn main() {
         write_backtest_outputs(bt);
     }
 
-    let json = serde_json::to_string_pretty(&backtests).expect("serialize backtests");
-    std::fs::write(paths::log_file("results.json"), json).expect("write results.json");
-
     let mut results: Vec<ResultSummary> = backtests
-        .into_iter()
-        .map(|b| b.summary)
+        .iter()
+        .map(|b| b.summary.clone())
         .collect();
 
     let bh_return = results
@@ -158,6 +155,24 @@ fn main() {
     apply_scoring(&mut results);
 
     results.sort_by(|a, b| b.score.total_cmp(&a.score));
+
+    let export: Vec<BacktestResult> = results
+        .iter()
+        .map(|summary| {
+            let bt = backtests
+                .iter()
+                .find(|b| b.summary.strategy_name == summary.strategy_name)
+                .expect("strategy in backtests");
+            BacktestResult {
+                name: bt.name.clone(),
+                summary: summary.clone(),
+                equity_curve: bt.equity_curve.clone(),
+                trades: bt.trades.clone(),
+            }
+        })
+        .collect();
+    let json = serde_json::to_string_pretty(&export).expect("serialize backtests");
+    std::fs::write(paths::output_file("results.json"), json).expect("write results.json");
 
     print_comparison_table(&results);
 }

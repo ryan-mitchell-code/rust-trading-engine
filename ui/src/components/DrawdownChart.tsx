@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { BacktestResult } from "../types";
+import type { BacktestResult, MarketSeries } from "../types";
 import {
   LINE_STROKE_WIDTH,
   LINE_STROKE_WIDTH_HIGHLIGHT,
@@ -16,23 +16,9 @@ import {
 } from "./EquityChart.tsx";
 
 type DrawdownChartProps = {
+  market: MarketSeries;
   results: BacktestResult[];
 };
-
-/** Compare backend timestamp strings by instant (not lexicographic order). */
-function compareTimestampStrings(a: string, b: string): number {
-  const ta = new Date(a).getTime();
-  const tb = new Date(b).getTime();
-  const aOk = !Number.isNaN(ta);
-  const bOk = !Number.isNaN(tb);
-  if (aOk && bOk) {
-    return ta - tb;
-  }
-  if (aOk !== bOk) {
-    return aOk ? -1 : 1;
-  }
-  return a.localeCompare(b);
-}
 
 /** Shorter axis labels when many points; full string if unparsable as a date. */
 function formatXAxisTickLabel(raw: string): string {
@@ -92,40 +78,36 @@ function drawdownYDomain(minDd: number): [number, number] {
 }
 
 /**
- * One row per timestamp; `timestamp` plus one field per strategy `name` (drawdown ratio).
- * Uses `drawdown_curve` only — no drawdown math here.
+ * One row per bar; `timestamp` from `market`, plus one field per strategy `name` (drawdown ratio).
+ * Uses backend `drawdown_curve` only — no drawdown math here.
  */
 function mergeDrawdownCurves(
+  market: MarketSeries,
   results: BacktestResult[],
 ): Record<string, string | number>[] {
-  const byTimestamp = new Map<string, Record<string, string | number>>();
-
-  for (const r of results) {
-    for (const pt of r.drawdown_curve) {
-      const ts = pt.timestamp;
-      let row = byTimestamp.get(ts);
-      if (row === undefined) {
-        row = { timestamp: ts };
-        byTimestamp.set(ts, row);
-      }
-      row[r.name] = pt.drawdown;
+  const lengths = results.map((r) => r.drawdown_curve.length);
+  const n = Math.min(market.length, ...lengths);
+  const rows: Record<string, string | number>[] = [];
+  for (let i = 0; i < n; i++) {
+    const timestamp = market[i][0];
+    const row: Record<string, string | number> = { timestamp };
+    for (const r of results) {
+      row[r.name] = r.drawdown_curve[i];
     }
+    rows.push(row);
   }
-
-  return [...byTimestamp.entries()]
-    .sort(([a], [b]) => compareTimestampStrings(a, b))
-    .map(([, row]) => row);
+  return rows;
 }
 
-export function DrawdownChart({ results }: DrawdownChartProps) {
+export function DrawdownChart({ market, results }: DrawdownChartProps) {
   const withCurves = results.filter((r) => r.drawdown_curve.length > 0);
-  if (withCurves.length === 0) {
+  if (withCurves.length === 0 || market.length === 0) {
     return (
       <p className="text-sm text-slate-500">No drawdown series to plot.</p>
     );
   }
 
-  const chartData = mergeDrawdownCurves(withCurves);
+  const chartData = mergeDrawdownCurves(market, withCurves);
   const strategyNames = withCurves.map((r) => r.name);
   const yDomain = drawdownYDomain(
     minDrawdownAcrossStrategies(chartData, strategyNames),

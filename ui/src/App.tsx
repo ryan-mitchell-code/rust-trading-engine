@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { DrawdownChart } from "./components/DrawdownChart.tsx";
 import { EquityChart } from "./components/EquityChart.tsx";
+import { PriceChart } from "./components/PriceChart.tsx";
 import { StrategyTable } from "./components/StrategyTable.tsx";
-import type { BacktestResult } from "./types.ts";
+import type { BacktestRun } from "./types.ts";
 
 export function App() {
-  const [results, setResults] = useState<BacktestResult[] | null>(null);
+  const [run, setRun] = useState<BacktestRun | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -16,12 +17,12 @@ export function App() {
         if (!res.ok) {
           throw new Error(`${res.status} ${res.statusText}`);
         }
-        return res.json() as Promise<BacktestResult[]>;
+        return res.json() as Promise<BacktestRun>;
       })
       .then((data) => {
         if (!cancelled) {
           setError(null);
-          setResults(data);
+          setRun(data);
         }
       })
       .catch((e: unknown) => {
@@ -29,7 +30,7 @@ export function App() {
           const message =
             e instanceof Error ? e.message : "Failed to load results";
           setError(message);
-          setResults(null);
+          setRun(null);
         }
       });
 
@@ -60,31 +61,38 @@ export function App() {
           </div>
         )}
 
-        {results === null && error === null && (
+        {run === null && error === null && (
           <p className="text-sm text-slate-500">Loading backtest results…</p>
         )}
 
-        {results !== null && (
+        {run !== null && (
           <>
+            <section className="space-y-3">
+              <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+                Market Price
+              </h2>
+              <PriceChart run={run} />
+            </section>
+
             <section className="space-y-3">
               <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Strategy comparison
               </h2>
-              <StrategyTable results={results} />
+              <StrategyTable results={run.results} />
             </section>
 
             <section className="space-y-3">
               <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Equity curves
               </h2>
-              <EquityChart results={results} />
+              <EquityChart market={run.market} results={run.results} />
             </section>
 
             <section className="space-y-3">
               <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Drawdown
               </h2>
-              <DrawdownChart results={results} />
+              <DrawdownChart market={run.market} results={run.results} />
             </section>
           </>
         )}

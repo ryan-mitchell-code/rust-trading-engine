@@ -1,5 +1,5 @@
 /**
- * Mirrors `backend/src/engine.rs` (`ResultSummary`, `BacktestResult`) as serialized by `serde_json`.
+ * Mirrors `backend/src/engine.rs` as serialized by `serde_json`.
  * If the UI drifts from real output, fix the Rust types / serialization — not ad-hoc mapping here.
  */
 
@@ -24,24 +24,22 @@ export interface ResultSummary {
   score: number;
 }
 
-/** Mirrors `EquityPoint` from `backend/src/engine.rs`. */
-export interface EquityPoint {
-  timestamp: string;
-  capital: number;
-}
-
-/** Mirrors `DrawdownPoint` from `backend/src/engine.rs`. */
-export interface DrawdownPoint {
-  timestamp: string;
-  /** `(equity - peak) / peak`; ≤ 0 vs running peak. */
-  drawdown: number;
-}
+/** `Vec<(String, f64)>` → JSON array of `[timestamp, close]` pairs (one bar per candle). */
+export type MarketSeries = [string, number][];
 
 export interface BacktestResult {
   /** Strategy id — stable key for this backtest (not duplicated under `summary`). */
   name: string;
   summary: ResultSummary;
-  equity_curve: EquityPoint[];
-  drawdown_curve: DrawdownPoint[];
+  /** Mark-to-market capital per bar; same length as `BacktestRun.market`. */
+  equity_curve: number[];
+  /** Drawdown ratio vs running peak per bar; same length as `equity_curve`. */
+  drawdown_curve: number[];
   trades: string[][];
+}
+
+/** `BacktestRun` from backend — shared market + per-strategy curves (no duplicated timestamps in results). */
+export interface BacktestRun {
+  market: MarketSeries;
+  results: BacktestResult[];
 }

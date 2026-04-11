@@ -7,9 +7,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { BacktestResult } from "../types";
+import type { BacktestResult, MarketSeries } from "../types";
 
 type EquityChartProps = {
+  market: MarketSeries;
   results: BacktestResult[];
 };
 
@@ -68,56 +69,37 @@ function paddedCapitalDomain(
   return [dataMin - pad, dataMax + pad];
 }
 
-/** Compare backend timestamp strings by instant (not lexicographic order). */
-function compareTimestampStrings(a: string, b: string): number {
-  const ta = new Date(a).getTime();
-  const tb = new Date(b).getTime();
-  const aOk = !Number.isNaN(ta);
-  const bOk = !Number.isNaN(tb);
-  if (aOk && bOk) {
-    return ta - tb;
-  }
-  if (aOk !== bOk) {
-    return aOk ? -1 : 1;
-  }
-  return a.localeCompare(b);
-}
-
 /**
- * One row per timestamp; `timestamp` plus one numeric field per strategy `name` (capital).
- * Built only for charting — does not mutate `results` or the underlying curves.
+ * One row per bar; `timestamp` from `market`, plus one numeric field per strategy `name` (capital).
+ * Curves are aligned by index with `market` — does not mutate inputs.
  */
 function mergeEquityCurves(
+  market: MarketSeries,
   results: BacktestResult[],
 ): Record<string, string | number>[] {
-  const byTimestamp = new Map<string, Record<string, string | number>>();
-
-  for (const r of results) {
-    for (const pt of r.equity_curve) {
-      const ts = pt.timestamp;
-      let row = byTimestamp.get(ts);
-      if (row === undefined) {
-        row = { timestamp: ts };
-        byTimestamp.set(ts, row);
-      }
-      row[r.name] = pt.capital;
+  const lengths = results.map((r) => r.equity_curve.length);
+  const n = Math.min(market.length, ...lengths);
+  const rows: Record<string, string | number>[] = [];
+  for (let i = 0; i < n; i++) {
+    const timestamp = market[i][0];
+    const row: Record<string, string | number> = { timestamp };
+    for (const r of results) {
+      row[r.name] = r.equity_curve[i];
     }
+    rows.push(row);
   }
-
-  return [...byTimestamp.entries()]
-    .sort(([a], [b]) => compareTimestampStrings(a, b))
-    .map(([, row]) => row);
+  return rows;
 }
 
-export function EquityChart({ results }: EquityChartProps) {
+export function EquityChart({ market, results }: EquityChartProps) {
   const withCurves = results.filter((r) => r.equity_curve.length > 0);
-  if (withCurves.length === 0) {
+  if (withCurves.length === 0 || market.length === 0) {
     return (
       <p className="text-sm text-slate-500">No equity curves to plot.</p>
     );
   }
 
-  const chartData = mergeEquityCurves(withCurves);
+  const chartData = mergeEquityCurves(market, withCurves);
   const strategyNames = withCurves.map((r) => r.name);
   const topCapitalName = withCurves.reduce((best, r) =>
     r.summary.final_capital > best.summary.final_capital ? r : best,

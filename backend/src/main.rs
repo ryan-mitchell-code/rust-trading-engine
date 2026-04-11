@@ -6,7 +6,7 @@ mod models;
 mod paths;
 mod strategy;
 
-use engine::{run, BacktestResult};
+use engine::{market_series, run, BacktestResult, BacktestRun};
 use strategy::{BuyAndHold, MovingAverage, RandomStrategy};
 
 const MOVING_AVERAGE_NAME: &str = "moving_average_5_20";
@@ -16,11 +16,11 @@ const SHARPE_WEIGHT: f64 = 2.0;
 const RETURN_WEIGHT: f64 = 1.0;
 const DRAWDOWN_WEIGHT: f64 = 1.0;
 
-fn write_backtest_outputs(bt: &BacktestResult) {
-    let equity_rows: Vec<Vec<String>> = bt
-        .equity_curve
+fn write_backtest_outputs(market: &[(String, f64)], bt: &BacktestResult) {
+    let equity_rows: Vec<Vec<String>> = market
         .iter()
-        .map(|p| vec![p.timestamp.clone(), format!("{:.2}", p.capital)])
+        .zip(bt.equity_curve.iter())
+        .map(|((ts, _), cap)| vec![ts.clone(), format!("{:.2}", cap)])
         .collect();
     csv::write_csv(&bt.summary.equity_csv, &["timestamp", "capital"], &equity_rows)
         .expect("write equity csv");
@@ -124,6 +124,7 @@ fn main() {
         .any(|a| a == "-v" || a == "--verbose");
 
     let candles = data::load_csv(paths::data_file("formatted_btc.csv"));
+    let market = market_series(&candles);
 
     let mut backtests: Vec<BacktestResult> = vec![
         run(
@@ -137,7 +138,7 @@ fn main() {
     ];
 
     for bt in &backtests {
-        write_backtest_outputs(bt);
+        write_backtest_outputs(&market, bt);
     }
 
     let bh_return = backtests
@@ -154,8 +155,12 @@ fn main() {
 
     backtests.sort_by(|a, b| b.summary.score.total_cmp(&a.summary.score));
 
-    let json = serde_json::to_string_pretty(&backtests).expect("serialize backtests");
-    std::fs::write(paths::output_file("results.json"), json).expect("write results.json");
-
     print_comparison_table(&backtests);
+
+    let export = BacktestRun {
+        market,
+        results: backtests,
+    };
+    let json = serde_json::to_string_pretty(&export).expect("serialize backtests");
+    std::fs::write(paths::output_file("results.json"), json).expect("write results.json");
 }

@@ -7,6 +7,13 @@ import {
   YAxis,
 } from "recharts";
 import type { BacktestRun } from "../types";
+import {
+  formatChartTooltipTimestamp,
+  formatChartXAxisTickLabel,
+  lineChartXMarginBottom,
+  xAxisMinTickGap,
+  xAxisTickStyle,
+} from "./chartXAxis.ts";
 
 type PriceChartProps = {
   run: BacktestRun;
@@ -28,30 +35,6 @@ function formatPriceTooltip(n: number): string {
   });
 }
 
-/** Shorter axis labels when many points; full string if unparsable as a date. */
-function formatXAxisTickLabel(raw: string): string {
-  const t = new Date(raw).getTime();
-  if (Number.isNaN(t)) {
-    return raw.length > 12 ? `${raw.slice(0, 10)}…` : raw;
-  }
-  return new Date(t).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatTooltipTimestamp(raw: unknown): string {
-  const s = String(raw);
-  const t = new Date(s).getTime();
-  if (Number.isNaN(t)) {
-    return s;
-  }
-  return new Date(t).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
 /** `[timestamp, close]` → rows for Recharts. Does not mutate `run`. */
 function marketToChartData(
   run: BacktestRun,
@@ -68,8 +51,6 @@ export function PriceChart({ run }: PriceChartProps) {
 
   const chartData = marketToChartData(run);
   const pointCount = chartData.length;
-  const hideXTickLabels = pointCount > 360;
-  const xAxisDense = pointCount > 80 && !hideXTickLabels;
 
   return (
     <div className="h-80 w-full rounded-lg border border-slate-800 bg-slate-900/40 p-2">
@@ -79,22 +60,18 @@ export function PriceChart({ run }: PriceChartProps) {
           margin={{
             top: 8,
             right: 12,
-            bottom: (hideXTickLabels ? 12 : xAxisDense ? 20 : 16) + 8,
+            bottom: lineChartXMarginBottom(pointCount),
             left: 8,
           }}
         >
           <XAxis
             dataKey="timestamp"
             stroke="#64748b"
-            tick={
-              hideXTickLabels
-                ? false
-                : { fill: "#94a3b8", fontSize: 10 }
-            }
-            minTickGap={hideXTickLabels ? undefined : xAxisDense ? 52 : 28}
+            tick={xAxisTickStyle(pointCount)}
+            minTickGap={xAxisMinTickGap(pointCount)}
             tickFormatter={(value) =>
               typeof value === "string"
-                ? formatXAxisTickLabel(value)
+                ? formatChartXAxisTickLabel(value)
                 : String(value)
             }
           />
@@ -119,7 +96,7 @@ export function PriceChart({ run }: PriceChartProps) {
                 ? formatPriceTooltip(value)
                 : String(value)
             }
-            labelFormatter={(label) => formatTooltipTimestamp(label)}
+            labelFormatter={(label) => formatChartTooltipTimestamp(label)}
           />
           <Line
             type="monotone"

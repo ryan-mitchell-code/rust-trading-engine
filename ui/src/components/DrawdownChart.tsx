@@ -10,39 +10,29 @@ import {
 } from "recharts";
 import type { BacktestResult, MarketSeries } from "../types";
 import {
+  formatChartTooltipTimestamp,
+  formatChartXAxisTickLabel,
+  lineChartXMarginBottom,
+  xAxisMinTickGap,
+  xAxisTickStyle,
+} from "./chartXAxis.ts";
+import {
+  BENCHMARK_STRATEGY_NAME,
+  BENCHMARK_STROKE,
+  BENCHMARK_STROKE_DASHARRAY,
+  BENCHMARK_STROKE_WIDTH,
   LINE_STROKE_WIDTH,
   LINE_STROKE_WIDTH_HIGHLIGHT,
   SERIES_COLORS,
 } from "./EquityChart.tsx";
 
+/** Non-benchmark series: slightly transparent so benchmark reads clearly. */
+const ACTIVE_STRATEGY_STROKE_OPACITY = 0.7;
+
 type DrawdownChartProps = {
   market: MarketSeries;
   results: BacktestResult[];
 };
-
-/** Shorter axis labels when many points; full string if unparsable as a date. */
-function formatXAxisTickLabel(raw: string): string {
-  const t = new Date(raw).getTime();
-  if (Number.isNaN(t)) {
-    return raw.length > 12 ? `${raw.slice(0, 10)}…` : raw;
-  }
-  return new Date(t).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatTooltipTimestamp(raw: unknown): string {
-  const s = String(raw);
-  const t = new Date(s).getTime();
-  if (Number.isNaN(t)) {
-    return s;
-  }
-  return new Date(t).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 /** Backend drawdown ratios → percentage strings (2 decimals). */
 function formatDrawdownPercent(n: number): string {
@@ -116,8 +106,38 @@ export function DrawdownChart({ market, results }: DrawdownChartProps) {
     r.summary.final_capital > best.summary.final_capital ? r : best,
   ).name;
   const pointCount = chartData.length;
-  const hideXTickLabels = pointCount > 360;
-  const xAxisDense = pointCount > 80 && !hideXTickLabels;
+
+  let activePaletteIndex = 0;
+  const drawdownLines = strategyNames.map((name) => {
+    const isBenchmark = name === BENCHMARK_STRATEGY_NAME;
+    const stroke = isBenchmark
+      ? BENCHMARK_STROKE
+      : SERIES_COLORS[activePaletteIndex++ % SERIES_COLORS.length];
+    const isTopCapital = !isBenchmark && name === topCapitalName;
+    const strokeWidth = isBenchmark
+      ? BENCHMARK_STROKE_WIDTH
+      : isTopCapital
+        ? LINE_STROKE_WIDTH_HIGHLIGHT
+        : LINE_STROKE_WIDTH;
+    return (
+      <Line
+        key={name}
+        type="monotone"
+        dataKey={name}
+        name={isBenchmark ? `${name} (benchmark)` : name}
+        stroke={stroke}
+        strokeOpacity={isBenchmark ? 1 : ACTIVE_STRATEGY_STROKE_OPACITY}
+        strokeWidth={strokeWidth}
+        strokeDasharray={
+          isBenchmark ? BENCHMARK_STROKE_DASHARRAY : undefined
+        }
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        dot={false}
+        connectNulls
+      />
+    );
+  });
 
   return (
     <div className="h-80 w-full rounded-lg border border-slate-800 bg-slate-900/40 p-2">
@@ -127,22 +147,18 @@ export function DrawdownChart({ market, results }: DrawdownChartProps) {
           margin={{
             top: 8,
             right: 12,
-            bottom: (hideXTickLabels ? 12 : xAxisDense ? 20 : 16) + 8,
+            bottom: lineChartXMarginBottom(pointCount),
             left: 8,
           }}
         >
           <XAxis
             dataKey="timestamp"
             stroke="#64748b"
-            tick={
-              hideXTickLabels
-                ? false
-                : { fill: "#94a3b8", fontSize: 10 }
-            }
-            minTickGap={hideXTickLabels ? undefined : xAxisDense ? 52 : 28}
+            tick={xAxisTickStyle(pointCount)}
+            minTickGap={xAxisMinTickGap(pointCount)}
             tickFormatter={(value) =>
               typeof value === "string"
-                ? formatXAxisTickLabel(value)
+                ? formatChartXAxisTickLabel(value)
                 : String(value)
             }
           />
@@ -168,7 +184,7 @@ export function DrawdownChart({ market, results }: DrawdownChartProps) {
                 ? formatDrawdownPercent(value)
                 : String(value)
             }
-            labelFormatter={(label) => formatTooltipTimestamp(label)}
+            labelFormatter={(label) => formatChartTooltipTimestamp(label)}
           />
           <Legend
             verticalAlign="bottom"
@@ -188,27 +204,7 @@ export function DrawdownChart({ market, results }: DrawdownChartProps) {
             strokeDasharray="4 4"
             strokeOpacity={0.85}
           />
-          {strategyNames.map((name, i) => {
-            const isTopCapital = name === topCapitalName;
-            return (
-              <Line
-                key={name}
-                type="monotone"
-                dataKey={name}
-                stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                strokeOpacity={0.7}
-                strokeWidth={
-                  isTopCapital
-                    ? LINE_STROKE_WIDTH_HIGHLIGHT
-                    : LINE_STROKE_WIDTH
-                }
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                dot={false}
-                connectNulls
-              />
-            );
-          })}
+          {drawdownLines}
         </LineChart>
       </ResponsiveContainer>
     </div>

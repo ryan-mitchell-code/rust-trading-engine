@@ -8,6 +8,13 @@ import {
   YAxis,
 } from "recharts";
 import type { BacktestResult, MarketSeries } from "../types";
+import {
+  formatChartTooltipTimestamp,
+  formatChartXAxisTickLabel,
+  lineChartXMarginBottom,
+  xAxisMinTickGap,
+  xAxisTickStyle,
+} from "./chartXAxis.ts";
 
 type EquityChartProps = {
   market: MarketSeries;
@@ -26,35 +33,19 @@ export const SERIES_COLORS = [
 export const LINE_STROKE_WIDTH = 2;
 export const LINE_STROKE_WIDTH_HIGHLIGHT = 3;
 
+/** Matches `BUY_AND_HOLD_NAME` in backend — passive benchmark, not an active strategy. */
+export const BENCHMARK_STRATEGY_NAME = "buy_and_hold";
+export const BENCHMARK_STROKE = "#94a3b8";
+/** Thin stroke so dash pattern reads as dotted vs solid active series. */
+export const BENCHMARK_STROKE_WIDTH = 1.15;
+/** Short gaps + small dashes → visibly dotted (with round line caps). */
+export const BENCHMARK_STROKE_DASHARRAY = "1.5 5";
+
 /** Capital display: matches Y-axis ticks and tooltip values. */
 function formatCapital(n: number): string {
   return n.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
-}
-
-/** Shorter axis labels when many points; full string if unparsable as a date. */
-function formatXAxisTickLabel(raw: string): string {
-  const t = new Date(raw).getTime();
-  if (Number.isNaN(t)) {
-    return raw.length > 12 ? `${raw.slice(0, 10)}…` : raw;
-  }
-  return new Date(t).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatTooltipTimestamp(raw: unknown): string {
-  const s = String(raw);
-  const t = new Date(s).getTime();
-  if (Number.isNaN(t)) {
-    return s;
-  }
-  return new Date(t).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
   });
 }
 
@@ -105,8 +96,37 @@ export function EquityChart({ market, results }: EquityChartProps) {
     r.summary.final_capital > best.summary.final_capital ? r : best,
   ).name;
   const pointCount = chartData.length;
-  const hideXTickLabels = pointCount > 360;
-  const xAxisDense = pointCount > 80 && !hideXTickLabels;
+
+  let activePaletteIndex = 0;
+  const equityLines = strategyNames.map((name) => {
+    const isBenchmark = name === BENCHMARK_STRATEGY_NAME;
+    const stroke = isBenchmark
+      ? BENCHMARK_STROKE
+      : SERIES_COLORS[activePaletteIndex++ % SERIES_COLORS.length];
+    const isTopCapital = !isBenchmark && name === topCapitalName;
+    const strokeWidth = isBenchmark
+      ? BENCHMARK_STROKE_WIDTH
+      : isTopCapital
+        ? LINE_STROKE_WIDTH_HIGHLIGHT
+        : LINE_STROKE_WIDTH;
+    return (
+      <Line
+        key={name}
+        type="monotone"
+        dataKey={name}
+        name={isBenchmark ? `${name} (benchmark)` : name}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeDasharray={
+          isBenchmark ? BENCHMARK_STROKE_DASHARRAY : undefined
+        }
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        dot={false}
+        connectNulls
+      />
+    );
+  });
 
   return (
     <div className="h-80 w-full rounded-lg border border-slate-800 bg-slate-900/40 p-2">
@@ -116,22 +136,18 @@ export function EquityChart({ market, results }: EquityChartProps) {
           margin={{
             top: 8,
             right: 12,
-            bottom: (hideXTickLabels ? 12 : xAxisDense ? 20 : 16) + 8,
+            bottom: lineChartXMarginBottom(pointCount),
             left: 8,
           }}
         >
           <XAxis
             dataKey="timestamp"
             stroke="#64748b"
-            tick={
-              hideXTickLabels
-                ? false
-                : { fill: "#94a3b8", fontSize: 10 }
-            }
-            minTickGap={hideXTickLabels ? undefined : xAxisDense ? 52 : 28}
+            tick={xAxisTickStyle(pointCount)}
+            minTickGap={xAxisMinTickGap(pointCount)}
             tickFormatter={(value) =>
               typeof value === "string"
-                ? formatXAxisTickLabel(value)
+                ? formatChartXAxisTickLabel(value)
                 : String(value)
             }
           />
@@ -155,7 +171,7 @@ export function EquityChart({ market, results }: EquityChartProps) {
             formatter={(value) =>
               typeof value === "number" ? formatCapital(value) : String(value)
             }
-            labelFormatter={(label) => formatTooltipTimestamp(label)}
+            labelFormatter={(label) => formatChartTooltipTimestamp(label)}
           />
           <Legend
             verticalAlign="bottom"
@@ -169,26 +185,7 @@ export function EquityChart({ market, results }: EquityChartProps) {
               letterSpacing: "0.01em",
             }}
           />
-          {strategyNames.map((name, i) => {
-            const isTopCapital = name === topCapitalName;
-            return (
-              <Line
-                key={name}
-                type="monotone"
-                dataKey={name}
-                stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                strokeWidth={
-                  isTopCapital
-                    ? LINE_STROKE_WIDTH_HIGHLIGHT
-                    : LINE_STROKE_WIDTH
-                }
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                dot={false}
-                connectNulls
-              />
-            );
-          })}
+          {equityLines}
         </LineChart>
       </ResponsiveContainer>
     </div>

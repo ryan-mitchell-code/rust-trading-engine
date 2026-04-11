@@ -1,6 +1,7 @@
 //! Binance spot [`GET /api/v3/klines`](https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data) client.
 
 use crate::models::Candle;
+use chrono::{SecondsFormat, TimeZone, Utc};
 use serde_json::Value;
 
 const KLINES_URL: &str = "https://api.binance.com/api/v3/klines";
@@ -38,8 +39,13 @@ pub async fn fetch_klines(symbol: &str, interval: &str, limit: u16) -> Vec<Candl
                 .expect("open time");
             // Indices 1–4: open, high, low, close (strings or numbers). Candle keeps close only.
             let close = json_f64(&row[4]);
+            let timestamp = Utc
+                .timestamp_millis_opt(open_ms)
+                .single()
+                .map(|dt| dt.to_rfc3339_opts(SecondsFormat::Secs, true))
+                .unwrap_or_else(|| format!("{open_ms}"));
             Candle {
-                timestamp: format!("{open_ms}"),
+                timestamp,
                 close,
             }
         })

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DrawdownChart } from "./components/DrawdownChart.tsx";
 import { EquityChart } from "./components/EquityChart.tsx";
 import { StrategyTable } from "./components/StrategyTable.tsx";
 import type { BacktestResult } from "./types.ts";
@@ -77,6 +78,13 @@ export function App() {
                 Equity curves
               </h2>
               <EquityChart results={results} />
+            </section>
+
+            <section className="space-y-3">
+              <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+                Drawdown
+              </h2>
+              <DrawdownChart results={results} />
             </section>
           </>
         )}

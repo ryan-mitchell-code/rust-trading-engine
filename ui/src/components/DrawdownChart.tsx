@@ -2,35 +2,36 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import type { BacktestResult } from "../types";
+import {
+  LINE_STROKE_WIDTH,
+  LINE_STROKE_WIDTH_HIGHLIGHT,
+  SERIES_COLORS,
+} from "./EquityChart.tsx";
 
-type EquityChartProps = {
+type DrawdownChartProps = {
   results: BacktestResult[];
 };
 
-/** Fixed order: distinct on dark backgrounds, consistent across Line + Legend. */
-export const SERIES_COLORS = [
-  "#38bdf8",
-  "#818cf8",
-  "#34d399",
-  "#fbbf24",
-  "#f472b6",
-] as const;
-
-export const LINE_STROKE_WIDTH = 2;
-export const LINE_STROKE_WIDTH_HIGHLIGHT = 3;
-
-/** Capital display: matches Y-axis ticks and tooltip values. */
-function formatCapital(n: number): string {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+/** Compare backend timestamp strings by instant (not lexicographic order). */
+function compareTimestampStrings(a: string, b: string): number {
+  const ta = new Date(a).getTime();
+  const tb = new Date(b).getTime();
+  const aOk = !Number.isNaN(ta);
+  const bOk = !Number.isNaN(tb);
+  if (aOk && bOk) {
+    return ta - tb;
+  }
+  if (aOk !== bOk) {
+    return aOk ? -1 : 1;
+  }
+  return a.localeCompare(b);
 }
 
 /** Shorter axis labels when many points; full string if unparsable as a date. */
@@ -57,50 +58,57 @@ function formatTooltipTimestamp(raw: unknown): string {
   });
 }
 
-/** Tight Y-axis around the plotted capitals: small padding so lines aren’t clipped at the edges. */
-function paddedCapitalDomain(
-  domain: readonly [number, number],
-): [number, number] {
-  const dataMin = domain[0];
-  const dataMax = domain[1];
-  const span = dataMax - dataMin || Math.max(Math.abs(dataMin) * 0.001, 1);
-  const pad = span * 0.05;
-  return [dataMin - pad, dataMax + pad];
+/** Backend drawdown ratios → percentage strings (2 decimals). */
+function formatDrawdownPercent(n: number): string {
+  return `${(n * 100).toFixed(2)}%`;
 }
 
-/** Compare backend timestamp strings by instant (not lexicographic order). */
-function compareTimestampStrings(a: string, b: string): number {
-  const ta = new Date(a).getTime();
-  const tb = new Date(b).getTime();
-  const aOk = !Number.isNaN(ta);
-  const bOk = !Number.isNaN(tb);
-  if (aOk && bOk) {
-    return ta - tb;
+/** Most negative drawdown ratio across all series (worst point). */
+function minDrawdownAcrossStrategies(
+  chartData: Record<string, string | number>[],
+  strategyNames: string[],
+): number {
+  let minDd = 0;
+  for (const row of chartData) {
+    for (const name of strategyNames) {
+      const v = row[name];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        minDd = Math.min(minDd, v);
+      }
+    }
   }
-  if (aOk !== bOk) {
-    return aOk ? -1 : 1;
-  }
-  return a.localeCompare(b);
+  return minDd;
 }
 
 /**
- * One row per timestamp; `timestamp` plus one numeric field per strategy `name` (capital).
- * Built only for charting — does not mutate `results` or the underlying curves.
+ * Y domain: top fixed at 0 (peak); bottom from worst drawdown with ~10% padding below.
+ * Degenerate flat-at-peak case uses a thin band so the axis is usable (similar spirit to EquityChart padding).
  */
-function mergeEquityCurves(
+function drawdownYDomain(minDd: number): [number, number] {
+  if (minDd >= 0) {
+    return [-0.01, 0];
+  }
+  return [minDd * 1.1, 0];
+}
+
+/**
+ * One row per timestamp; `timestamp` plus one field per strategy `name` (drawdown ratio).
+ * Uses `drawdown_curve` only — no drawdown math here.
+ */
+function mergeDrawdownCurves(
   results: BacktestResult[],
 ): Record<string, string | number>[] {
   const byTimestamp = new Map<string, Record<string, string | number>>();
 
   for (const r of results) {
-    for (const pt of r.equity_curve) {
+    for (const pt of r.drawdown_curve) {
       const ts = pt.timestamp;
       let row = byTimestamp.get(ts);
       if (row === undefined) {
         row = { timestamp: ts };
         byTimestamp.set(ts, row);
       }
-      row[r.name] = pt.capital;
+      row[r.name] = pt.drawdown;
     }
   }
 
@@ -109,16 +117,19 @@ function mergeEquityCurves(
     .map(([, row]) => row);
 }
 
-export function EquityChart({ results }: EquityChartProps) {
-  const withCurves = results.filter((r) => r.equity_curve.length > 0);
+export function DrawdownChart({ results }: DrawdownChartProps) {
+  const withCurves = results.filter((r) => r.drawdown_curve.length > 0);
   if (withCurves.length === 0) {
     return (
-      <p className="text-sm text-slate-500">No equity curves to plot.</p>
+      <p className="text-sm text-slate-500">No drawdown series to plot.</p>
     );
   }
 
-  const chartData = mergeEquityCurves(withCurves);
+  const chartData = mergeDrawdownCurves(withCurves);
   const strategyNames = withCurves.map((r) => r.name);
+  const yDomain = drawdownYDomain(
+    minDrawdownAcrossStrategies(chartData, strategyNames),
+  );
   const topCapitalName = withCurves.reduce((best, r) =>
     r.summary.final_capital > best.summary.final_capital ? r : best,
   ).name;
@@ -155,11 +166,11 @@ export function EquityChart({ results }: EquityChartProps) {
           />
           <YAxis
             type="number"
-            domain={paddedCapitalDomain}
+            domain={yDomain}
             stroke="#64748b"
             tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={(v) =>
-              typeof v === "number" ? formatCapital(v) : String(v)
+              typeof v === "number" ? formatDrawdownPercent(v) : String(v)
             }
           />
           <Tooltip
@@ -171,7 +182,9 @@ export function EquityChart({ results }: EquityChartProps) {
             labelStyle={{ color: "#e2e8f0" }}
             itemStyle={{ color: "#e2e8f0" }}
             formatter={(value) =>
-              typeof value === "number" ? formatCapital(value) : String(value)
+              typeof value === "number"
+                ? formatDrawdownPercent(value)
+                : String(value)
             }
             labelFormatter={(label) => formatTooltipTimestamp(label)}
           />
@@ -187,6 +200,12 @@ export function EquityChart({ results }: EquityChartProps) {
               letterSpacing: "0.01em",
             }}
           />
+          <ReferenceLine
+            y={0}
+            stroke="#94a3b8"
+            strokeDasharray="4 4"
+            strokeOpacity={0.85}
+          />
           {strategyNames.map((name, i) => {
             const isTopCapital = name === topCapitalName;
             return (
@@ -195,6 +214,7 @@ export function EquityChart({ results }: EquityChartProps) {
                 type="monotone"
                 dataKey={name}
                 stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                strokeOpacity={0.7}
                 strokeWidth={
                   isTopCapital
                     ? LINE_STROKE_WIDTH_HIGHLIGHT

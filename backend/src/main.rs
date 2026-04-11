@@ -20,7 +20,7 @@ fn write_backtest_outputs(bt: &BacktestResult) {
     let equity_rows: Vec<Vec<String>> = bt
         .equity_curve
         .iter()
-        .map(|(ts, cap)| vec![ts.clone(), format!("{:.2}", cap)])
+        .map(|p| vec![p.timestamp.clone(), format!("{:.2}", p.capital)])
         .collect();
     csv::write_csv(&bt.summary.equity_csv, &["timestamp", "capital"], &equity_rows)
         .expect("write equity csv");

@@ -24,8 +24,11 @@ export interface ResultSummary {
   score: number;
 }
 
-/** `Vec<(String, f64)>` → JSON array of `[timestamp, capital]` pairs. */
-export type EquityCurve = [string, number][];
+/** Mirrors `EquityPoint` from `backend/src/engine.rs`. */
+export interface EquityPoint {
+  timestamp: string;
+  capital: number;
+}
 
 /** Mirrors `DrawdownPoint` from `backend/src/engine.rs`. */
 export interface DrawdownPoint {
@@ -38,7 +41,7 @@ export interface BacktestResult {
   /** Strategy id — stable key for this backtest (not duplicated under `summary`). */
   name: string;
   summary: ResultSummary;
-  equity_curve: EquityCurve;
+  equity_curve: EquityPoint[];
   drawdown_curve: DrawdownPoint[];
   trades: string[][];
 }

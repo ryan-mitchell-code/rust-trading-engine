@@ -35,7 +35,7 @@ fn realized_pnl(size: f64, exit_price: f64, allocation: f64) -> f64 {
 ///   spacing unless you normalize or annualize consistently.
 ///
 /// Returns `0.0` when there are fewer than two returns, or when sample std dev is negligible.
-fn sharpe_ratio_from_equity_curve(equity_curve: &[(String, f64)]) -> f64 {
+fn sharpe_ratio_from_equity_curve(equity_curve: &[EquityPoint]) -> f64 {
     if equity_curve.len() < 2 {
         return 0.0;
     }
@@ -43,8 +43,8 @@ fn sharpe_ratio_from_equity_curve(equity_curve: &[(String, f64)]) -> f64 {
     let mut returns: Vec<f64> = Vec::with_capacity(equity_curve.len() - 1);
 
     for w in equity_curve.windows(2) {
-        let prev = w[0].1;
-        let curr = w[1].1;
+        let prev = w[0].capital;
+        let curr = w[1].capital;
 
         debug_assert!(prev > 0.0, "equity should always be positive");
 
@@ -73,7 +73,14 @@ fn sharpe_ratio_from_equity_curve(equity_curve: &[(String, f64)]) -> f64 {
     }
 }
 
-/// One point on the drawdown series (aligned with `BacktestResult.equity_curve` timestamps).
+/// One point on the equity (mark-to-market capital) series.
+#[derive(Clone, Serialize)]
+pub struct EquityPoint {
+    pub timestamp: String,
+    pub capital: f64,
+}
+
+/// One point on the drawdown series (aligned with `equity_curve` timestamps).
 #[derive(Clone, Serialize)]
 pub struct DrawdownPoint {
     pub timestamp: String,
@@ -82,21 +89,22 @@ pub struct DrawdownPoint {
 }
 
 /// Per-timestep drawdown vs running peak: `(equity - peak) / peak` (0 at new highs, negative underwater).
-fn drawdown_curve_from_equity(equity_curve: &[(String, f64)]) -> Vec<DrawdownPoint> {
+fn drawdown_curve_from_equity(equity_curve: &[EquityPoint]) -> Vec<DrawdownPoint> {
     if equity_curve.is_empty() {
         return Vec::new();
     }
-    let mut peak = equity_curve[0].1;
+    let mut peak = equity_curve[0].capital;
     let mut out = Vec::with_capacity(equity_curve.len());
-    for (ts, eq) in equity_curve {
-        peak = peak.max(*eq);
+    for p in equity_curve {
+        let eq = p.capital;
+        peak = peak.max(eq);
         let drawdown = if peak.abs() > f64::EPSILON {
             (eq - peak) / peak
         } else {
             0.0
         };
         out.push(DrawdownPoint {
-            timestamp: ts.clone(),
+            timestamp: p.timestamp.clone(),
             drawdown,
         });
     }
@@ -132,7 +140,8 @@ pub struct BacktestResult {
     /// Strategy id for API/UI and CSV basenames (stable key for this run).
     pub name: String,
     pub summary: ResultSummary,
-    pub equity_curve: Vec<(String, f64)>,
+    /// Mark-to-market capital per bar; see [`EquityPoint`].
+    pub equity_curve: Vec<EquityPoint>,
     /// Same length and timestamps as `equity_curve`; see [`DrawdownPoint`].
     pub drawdown_curve: Vec<DrawdownPoint>,
     pub trades: Vec<Vec<String>>,
@@ -193,7 +202,7 @@ pub fn run<S: Strategy>(
     let mut next_trade_id: u32 = 1;
     let mut metrics = Metrics::new(INITIAL_CAPITAL);
     let mut trade_rows: Vec<Vec<String>> = Vec::new();
-    let mut equity_curve: Vec<(String, f64)> = Vec::with_capacity(data.len());
+    let mut equity_curve: Vec<EquityPoint> = Vec::with_capacity(data.len());
 
     for candle in data {
         let signal = strategy.next(candle.close);
@@ -276,7 +285,10 @@ pub fn run<S: Strategy>(
         }
 
         metrics.update_equity(capital);
-        equity_curve.push((candle.timestamp.clone(), capital));
+        equity_curve.push(EquityPoint {
+            timestamp: candle.timestamp.clone(),
+            capital,
+        });
     }
 
     if let Some((_, size, allocation)) = position.take() {
@@ -310,7 +322,8 @@ pub fn run<S: Strategy>(
         ));
 
         if let Some(last_row) = equity_curve.last_mut() {
-            *last_row = (last.timestamp.clone(), capital);
+            last_row.timestamp = last.timestamp.clone();
+            last_row.capital = capital;
         }
         metrics.update_equity(capital);
     }
@@ -403,9 +416,18 @@ mod tests {
     #[test]
     fn sharpe_ratio_flat_equity_is_zero() {
         let curve = vec![
-            ("a".to_string(), 10_000.0),
-            ("b".to_string(), 10_000.0),
-            ("c".to_string(), 10_000.0),
+            EquityPoint {
+                timestamp: "a".to_string(),
+                capital: 10_000.0,
+            },
+            EquityPoint {
+                timestamp: "b".to_string(),
+                capital: 10_000.0,
+            },
+            EquityPoint {
+                timestamp: "c".to_string(),
+                capital: 10_000.0,
+            },
         ];
         assert_close(sharpe_ratio_from_equity_curve(&curve), 0.0);
     }
@@ -418,10 +440,22 @@ mod tests {
     #[test]
     fn drawdown_curve_peaks_zero_underwater_negative() {
         let equity = vec![
-            ("t0".to_string(), 10_000.0),
-            ("t1".to_string(), 11_000.0),
-            ("t2".to_string(), 9_900.0),
-            ("t3".to_string(), 12_000.0),
+            EquityPoint {
+                timestamp: "t0".to_string(),
+                capital: 10_000.0,
+            },
+            EquityPoint {
+                timestamp: "t1".to_string(),
+                capital: 11_000.0,
+            },
+            EquityPoint {
+                timestamp: "t2".to_string(),
+                capital: 9_900.0,
+            },
+            EquityPoint {
+                timestamp: "t3".to_string(),
+                capital: 12_000.0,
+            },
         ];
         let dd = drawdown_curve_from_equity(&equity);
         assert_close(dd[0].drawdown, 0.0);
@@ -434,9 +468,18 @@ mod tests {
     fn sharpe_ratio_two_varying_returns() {
         // returns ≈ 1% and -0.5% → mean ≈ 0.25%, sample std > 0 → finite ratio
         let curve = vec![
-            ("a".to_string(), 10_000.0),
-            ("b".to_string(), 10_100.0),
-            ("c".to_string(), 10_049.5),
+            EquityPoint {
+                timestamp: "a".to_string(),
+                capital: 10_000.0,
+            },
+            EquityPoint {
+                timestamp: "b".to_string(),
+                capital: 10_100.0,
+            },
+            EquityPoint {
+                timestamp: "c".to_string(),
+                capital: 10_049.5,
+            },
         ];
         let s = sharpe_ratio_from_equity_curve(&curve);
         assert!(s.is_finite() && s > 0.0);

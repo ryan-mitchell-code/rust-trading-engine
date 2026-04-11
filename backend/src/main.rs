@@ -1,3 +1,4 @@
+mod arena;
 mod csv;
 mod data;
 mod engine;
@@ -6,73 +7,9 @@ mod models;
 mod paths;
 mod strategy;
 
-use engine::{market_series, run, BacktestResult, BacktestRun};
-use strategy::{BuyAndHold, MovingAverage, RandomStrategy};
+use engine::BacktestRun;
 
-const MOVING_AVERAGE_NAME: &str = "moving_average_5_20";
-const RANDOM_NAME: &str = "random";
-const BUY_AND_HOLD_NAME: &str = "buy_and_hold";
-const SHARPE_WEIGHT: f64 = 2.0;
-const RETURN_WEIGHT: f64 = 1.0;
-const DRAWDOWN_WEIGHT: f64 = 1.0;
-
-fn write_backtest_outputs(market: &[(String, f64)], bt: &BacktestResult) {
-    let equity_rows: Vec<Vec<String>> = market
-        .iter()
-        .zip(bt.equity_curve.iter())
-        .map(|((ts, _), cap)| vec![ts.clone(), format!("{:.2}", cap)])
-        .collect();
-    csv::write_csv(&bt.summary.equity_csv, &["timestamp", "capital"], &equity_rows)
-        .expect("write equity csv");
-    csv::write_csv(
-        &bt.summary.trades_csv,
-        &["trade_id", "timestamp", "side", "price", "pnl", "capital"],
-        &bt.trades,
-    )
-    .expect("write trades csv");
-}
-
-fn apply_scoring(backtests: &mut [BacktestResult]) {
-    let max_abs_sharpe = backtests
-        .iter()
-        .map(|b| b.summary.sharpe_ratio.abs())
-        .fold(0.0_f64, f64::max);
-    let max_abs_return = backtests
-        .iter()
-        .map(|b| b.summary.return_pct.abs())
-        .fold(0.0_f64, f64::max);
-    let max_abs_drawdown = backtests
-        .iter()
-        .map(|b| b.summary.drawdown_pct.abs())
-        .fold(0.0_f64, f64::max);
-
-    for b in backtests.iter_mut() {
-        let r = &mut b.summary;
-        let normalized_sharpe = if max_abs_sharpe > f64::EPSILON {
-            r.sharpe_ratio / max_abs_sharpe
-        } else {
-            0.0
-        };
-        let normalized_return = if max_abs_return > f64::EPSILON {
-            r.return_pct / max_abs_return
-        } else {
-            0.0
-        };
-        let normalized_drawdown = if max_abs_drawdown > f64::EPSILON {
-            r.drawdown_pct / max_abs_drawdown
-        } else {
-            0.0
-        };
-
-        r.score_sharpe_component = normalized_sharpe * SHARPE_WEIGHT;
-        r.score_return_component = normalized_return * RETURN_WEIGHT;
-        r.score_drawdown_component = normalized_drawdown * DRAWDOWN_WEIGHT;
-        r.score =
-            r.score_sharpe_component + r.score_return_component - r.score_drawdown_component;
-    }
-}
-
-fn print_comparison_table(backtests: &[BacktestResult]) {
+fn print_comparison_table(backtests: &[engine::BacktestResult]) {
     println!();
     println!(
         "{:<24} {:>10} {:>10} {:>10} {:>10} {:>12} {:>12} {:>12} {:>10} {:>8} {:>14} {:>12} {:>12} {:>14} {:>10} {:>12}",
@@ -118,7 +55,7 @@ fn print_comparison_table(backtests: &[BacktestResult]) {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     let verbose = std::env::args()
         .skip(1)
@@ -126,43 +63,11 @@ async fn main() {
 
     // Uses `outputs/binance_cache_*.json` when present so repeat runs skip the API.
     let candles = data::load_from_binance("BTCUSDT", "1d", 1000).await;
-    let market = market_series(&candles);
 
-    let mut backtests: Vec<BacktestResult> = vec![
-        run(
-            &candles,
-            MovingAverage::new(5, 20),
-            MOVING_AVERAGE_NAME,
-            verbose,
-        ),
-        run(&candles, RandomStrategy::new(), RANDOM_NAME, verbose),
-        run(&candles, BuyAndHold::new(), BUY_AND_HOLD_NAME, verbose),
-    ];
+    let export: BacktestRun = arena::run_arena(&candles, verbose);
 
-    for bt in &backtests {
-        write_backtest_outputs(&market, bt);
-    }
+    print_comparison_table(&export.results);
 
-    let bh_return = backtests
-        .iter()
-        .find(|b| b.name == BUY_AND_HOLD_NAME)
-        .expect("buy_and_hold in backtests")
-        .summary
-        .return_pct;
-    for bt in &mut backtests {
-        bt.summary.relative_return = bt.summary.return_pct - bh_return;
-    }
-
-    apply_scoring(&mut backtests);
-
-    backtests.sort_by(|a, b| b.summary.score.total_cmp(&a.summary.score));
-
-    print_comparison_table(&backtests);
-
-    let export = BacktestRun {
-        market,
-        results: backtests,
-    };
     let json = serde_json::to_string_pretty(&export).expect("serialize backtests");
     std::fs::write(paths::output_file("results.json"), json).expect("write results.json");
 }

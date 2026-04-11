@@ -35,6 +35,7 @@ fn realized_pnl(size: f64, exit_price: f64, allocation: f64) -> f64 {
 ///   spacing unless you normalize or annualize consistently.
 ///
 /// Returns `0.0` when there are fewer than two returns, or when sample std dev is negligible.
+/// Steps where the prior equity is non-positive or non-finite are skipped (avoids divide-by-zero and `inf`).
 fn sharpe_ratio_from_equity_curve(equity_curve: &[f64]) -> f64 {
     if equity_curve.len() < 2 {
         return 0.0;
@@ -46,9 +47,13 @@ fn sharpe_ratio_from_equity_curve(equity_curve: &[f64]) -> f64 {
         let prev = w[0];
         let curr = w[1];
 
-        debug_assert!(prev > 0.0, "equity should always be positive");
-
-        returns.push((curr - prev) / prev);
+        if prev <= 0.0 || !prev.is_finite() || !curr.is_finite() {
+            continue;
+        }
+        let step = (curr - prev) / prev;
+        if step.is_finite() {
+            returns.push(step);
+        }
     }
 
     let n = returns.len();
@@ -201,7 +206,7 @@ pub fn run<S: Strategy>(
     let mut equity_curve: Vec<f64> = Vec::with_capacity(data.len());
 
     for candle in data {
-        let signal = strategy.next(candle.close);
+        let signal = strategy.next(candle);
 
         let mut buy_log: Option<(u32, String, f64)> = None;
         let mut sell_log: Option<(u32, String, f64, f64)> = None;
@@ -432,6 +437,12 @@ mod tests {
         let curve = vec![10_000.0, 10_100.0, 10_049.5];
         let s = sharpe_ratio_from_equity_curve(&curve);
         assert!(s.is_finite() && s > 0.0);
+    }
+
+    #[test]
+    fn sharpe_ratio_skips_non_positive_prior_equity() {
+        let curve = vec![0.0, 10_000.0, 10_100.0];
+        assert_close(sharpe_ratio_from_equity_curve(&curve), 0.0);
     }
 
     /// One round-trip: open with 10% of cash, close at a higher price; no engine/strategy/IO.

@@ -1,4 +1,4 @@
-use crate::models::Signal;
+use crate::models::{Candle, Signal};
 
 use super::Strategy;
 
@@ -23,7 +23,8 @@ impl MovingAverage {
 }
 
 impl Strategy for MovingAverage {
-    fn next(&mut self, price: f64) -> Signal {
+    fn next(&mut self, candle: &Candle) -> Signal {
+        let price = candle.close;
         self.prices.push(price);
 
         if self.prices.len() < self.long {
@@ -69,6 +70,8 @@ impl Strategy for MovingAverage {
 
 #[cfg(test)]
 mod tests {
+    use crate::models::Candle;
+
     use super::*;
 
     fn assert_hold(s: Signal) {
@@ -79,26 +82,26 @@ mod tests {
     fn holds_while_insufficient_history() {
         let mut ma = MovingAverage::new(2, 5);
         for _ in 0..4 {
-            assert_hold(ma.next(100.0));
+            assert_hold(ma.next(&Candle::test_close(100.0)));
         }
     }
 
     #[test]
     fn first_bar_at_long_length_still_hold_without_prior_averages() {
         let mut ma = MovingAverage::new(2, 3);
-        assert_hold(ma.next(10.0));
-        assert_hold(ma.next(10.0));
+        assert_hold(ma.next(&Candle::test_close(10.0)));
+        assert_hold(ma.next(&Candle::test_close(10.0)));
         // Third bar: enough points for averages, but no previous short/long yet
-        assert_hold(ma.next(10.0));
+        assert_hold(ma.next(&Candle::test_close(10.0)));
     }
 
     #[test]
     fn produces_buy_on_short_crossing_above_long() {
         let mut ma = MovingAverage::new(2, 3);
-        assert_hold(ma.next(10.0));
-        assert_hold(ma.next(10.0));
-        assert_hold(ma.next(10.0));
-        let s = ma.next(12.0);
+        assert_hold(ma.next(&Candle::test_close(10.0)));
+        assert_hold(ma.next(&Candle::test_close(10.0)));
+        assert_hold(ma.next(&Candle::test_close(10.0)));
+        let s = ma.next(&Candle::test_close(12.0));
         assert!(matches!(s, Signal::Buy));
     }
 
@@ -107,7 +110,7 @@ mod tests {
         let mut ma = MovingAverage::new(2, 3);
         let prices = [10.0, 11.0, 12.0, 11.0, 10.0, 9.0, 8.0, 20.0, 21.0];
         for p in prices {
-            let s = ma.next(p);
+            let s = ma.next(&Candle::test_close(p));
             assert!(
                 matches!(s, Signal::Buy | Signal::Sell | Signal::Hold),
                 "unexpected signal variant"

@@ -1,4 +1,4 @@
-use crate::models::Signal;
+use crate::models::{Candle, Signal};
 
 use super::Strategy;
 
@@ -13,7 +13,7 @@ impl BuyAndHold {
 }
 
 impl Strategy for BuyAndHold {
-    fn next(&mut self, _price: f64) -> Signal {
+    fn next(&mut self, _candle: &Candle) -> Signal {
         if self.first {
             self.first = false;
             Signal::Buy
@@ -25,13 +25,15 @@ impl Strategy for BuyAndHold {
 
 #[cfg(test)]
 mod tests {
+    use crate::models::Candle;
+
     use super::*;
 
     #[test]
     fn buys_once_then_holds() {
         let mut s = BuyAndHold::new();
-        assert!(matches!(s.next(100.0), Signal::Buy));
-        assert!(matches!(s.next(101.0), Signal::Hold));
-        assert!(matches!(s.next(102.0), Signal::Hold));
+        assert!(matches!(s.next(&Candle::test_close(100.0)), Signal::Buy));
+        assert!(matches!(s.next(&Candle::test_close(101.0)), Signal::Hold));
+        assert!(matches!(s.next(&Candle::test_close(102.0)), Signal::Hold));
     }
 }

@@ -1,4 +1,4 @@
-use crate::models::Signal;
+use crate::models::{Candle, Signal};
 
 use super::Strategy;
 
@@ -27,7 +27,7 @@ impl RandomStrategy {
 }
 
 impl Strategy for RandomStrategy {
-    fn next(&mut self, _price: f64) -> Signal {
+    fn next(&mut self, _candle: &Candle) -> Signal {
         match self.rng.gen_range(0..3) {
             0 => Signal::Buy,
             1 => Signal::Sell,
@@ -38,13 +38,15 @@ impl Strategy for RandomStrategy {
 
 #[cfg(test)]
 mod tests {
+    use crate::models::Candle;
+
     use super::*;
 
     #[test]
     fn seeded_next_always_returns_valid_signal() {
         let mut s = RandomStrategy::from_seed(42);
         for _ in 0..50 {
-            let sig = s.next(1.0);
+            let sig = s.next(&Candle::test_close(1.0));
             assert!(matches!(
                 sig,
                 Signal::Buy | Signal::Sell | Signal::Hold

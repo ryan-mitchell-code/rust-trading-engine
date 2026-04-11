@@ -1,7 +1,7 @@
-use crate::models::Signal;
+use crate::models::{Candle, Signal};
 
 pub trait Strategy {
-    fn next(&mut self, price: f64) -> Signal;
+    fn next(&mut self, candle: &Candle) -> Signal;
 }
 
 pub mod buy_and_hold;

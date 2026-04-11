@@ -29,7 +29,7 @@
 
 ## Logging & Output
 
-- All outputs should be structured for analysis (CSV-first design)
+- All outputs should be structured for analysis (**CSV** for spreadsheets, **`BacktestRun` JSON** for the UI — same metrics and curves; do not diverge field names or meanings)
 - Avoid printing values that are not also captured in logs
 - Keep output formats consistent across strategies
 

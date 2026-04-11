@@ -36,15 +36,16 @@ A “bot” will eventually represent:
 
 Visual feedback is essential for learning.
 
-The system should produce:
+The system produces:
 
-- Equity curve (capital over time)
+- Equity curve (capital over time) and per-bar drawdown series (from the engine)
 - Trade log (buy/sell events and outcomes)
+- Shared market series in `results.json` (timestamp + close per bar)
 
-These outputs should be easy to:
+These outputs are available as:
 
-- Open in Excel / Google Sheets
-- Later integrate into a React frontend
+- **JSON** for the React UI (`outputs/results.json`)
+- **CSV** for Excel / Google Sheets
 
 ---
 
@@ -88,16 +89,20 @@ This project documents both implementation and learning.
 - `/docs/rust-learning.md` → Rust concepts and learnings
 - `/docs/dev-log.md` → Progress, decisions, mistakes
 - `/docs/glossary.md` → Trading concepts
+- `/docs/ui-rules.md` → UI conventions (read-only, types mirror Rust)
 - `README.md` → High-level overview
+- `ui/README.md` → How to run the front-end
 
 ---
 
 ## ⚙️ Current Features
 
-- CSV data loading
-- Moving average crossover strategy
-- Position tracking
-- Basic profit calculation
+- **Data**: Binance klines (with local JSON cache under `outputs/`), or CSV via `data::load_csv` for experiments
+- **Strategies**: moving average crossover, random, buy & hold
+- **Engine**: positions, capital, equity curve, per-bar drawdown series, trade log
+- **Metrics**: returns, max drawdown, drawdown duration, per-period Sharpe, scoring vs buy & hold
+- **Export**: `BacktestRun` JSON (`market` + `results`), per-strategy CSVs, CLI comparison table
+- **UI**: React app — strategy table, market price, equity, and drawdown charts
 
 ---
 
@@ -112,17 +117,15 @@ This project documents both implementation and learning.
 
 ## ⚠️ Constraints
 
-- No external trading libraries
+- No external *trading* libraries (networking for market data is OK)
 - Focus on learning, not profitability
 - Code should be idiomatic Rust where possible
 - Avoid unnecessary abstraction early
 
 ---
 
-## 🚀 Next Steps (Current Focus)
+## 🚀 Next Steps (Ideas)
 
-- Add capital tracking
-- Implement position sizing
-- Track equity over time
-- Export equity curve to CSV
-- Export trade log for analysis
+- Tune strategies and scoring
+- CLI or config for symbol / interval / limits
+- More metrics or reporting as needed

@@ -14,6 +14,8 @@ Typical candle fields:
 - Close: price at end of period
 - Volume: total traded amount
 
+In **this codebase**, the Rust `Candle` type stores **`timestamp`** and **`close`** only (enough for mark-to-market equity and bar alignment). Loaders may still consume full OHLCV from CSV or APIs.
+
 ## 📊 OHLCV
 
 Shorthand for market data columns:
@@ -147,6 +149,14 @@ Lower returns with smaller drawdowns can be easier to operate and often more rel
 - It is updated on each equity update via `update_equity(equity)`
 - It is used to compare strategy risk profiles
 
+### Per-bar drawdown series (`drawdown_curve`)
+
+For charts, the engine also emits a **time series** of drawdown vs a **running peak** (not the same sign convention as max drawdown above):
+
+`(current_equity - peak_equity) / peak_equity`
+
+So it is **≤ 0** while underwater and **0** at new highs. This is serialized in JSON for the UI; **do not recompute drawdown in the front-end** from equity.
+
 ## 📐 Sharpe Ratio
 
 The Sharpe ratio summarizes **risk-adjusted** return: how much return you get per unit of **volatility** in returns (not per unit of profit alone).
@@ -192,7 +202,17 @@ Same average return, but **A** is preferable on a risk-adjusted basis because vo
 - **Simple returns** between consecutive points: `(E_t - E_{t-1}) / E_{t-1}` when the prior equity is positive.
 - **Sample** standard deviation of those returns (when there are enough points); ratio is **0** if volatility is negligible or there are too few returns (safe division).
 - Stored as `sharpe_ratio` on `ResultSummary` and shown in the **comparison table** in `main`.
+- **Not annualized**; bar spacing defines the period.
 
 ### Key Insight
 
 **Profit alone is not enough.** A strategy with stable, repeatable growth is often easier to rely on than one with higher but more **volatile** equity paths—Sharpe is one way to make that trade-off visible.
+
+## 📦 Exported backtest (`BacktestRun`)
+
+The JSON export (`outputs/results.json`) is a single object with:
+
+- **`market`**: one series of **`(timestamp, close)`** pairs per bar (from `engine::market_series`), shared by all strategies.
+- **`results`**: array of per-strategy rows (name, summary, **equity curve**, **drawdown curve**, trades).
+
+This avoids duplicating market data for every strategy row and keeps the UI aligned on one x-axis.

@@ -22,13 +22,14 @@ This project focuses on building a **modular, extensible system** for testing an
 - Executes BUY / SELL lifecycle
 - Tracks capital, positions, and PnL
 - Supports pluggable strategies via trait system
+- Per-bar **equity** and **drawdown vs running peak** (computed in Rust; not recomputed in the UI)
 
 ### 📊 Metrics & Analysis
 
 - Return (%)
 - Max drawdown (%)
 - Drawdown duration (DD bars)
-- Sharpe ratio (risk-adjusted return)
+- **Per-period** Sharpe ratio from the equity curve (mean / sample std dev of step returns; **not** annualized)
 
 ### 🧠 Strategy Evaluation
 
@@ -49,16 +50,29 @@ This project focuses on building a **modular, extensible system** for testing an
 - Random (baseline)
 - Buy & Hold (benchmark)
 
+### 📥 Data
+
+- Default: **Binance** spot klines (`BTCUSDT`, `1d`, limit 1000) with a **local JSON cache** under `outputs/` to avoid repeat API calls
+- Optional: CSV loading remains available in code for ad-hoc use (`data::load_csv`)
+
 ### 📤 Outputs
 
-- CSV export (equity curve + trades)
-- CLI comparison table with full metrics
+- **`outputs/results.json`**: structured **`BacktestRun`** — shared **market** (timestamp + close per bar) plus **per-strategy** results (summaries, equity as `f64[]`, drawdown as `f64[]`, trades)
+- **CSV**: equity curve and trades per strategy (for spreadsheets)
+- **CLI**: comparison table with full metrics
+
+### 🖥️ UI (React)
+
+- Reads `results.json` (Vite dev server serves workspace `outputs/results.json`)
+- Strategy comparison table, **market price**, **equity**, and **drawdown** charts (Buy & Hold shown as a neutral benchmark style)
 
 ---
 
 ## 🏗️ Architecture Overview
 
 ```text
+Market data (Binance API + cache, or CSV)
+   ↓
 Strategies
    ↓
 Engine (execution + state)
@@ -67,7 +81,9 @@ Metrics (performance measurement)
    ↓
 Evaluation (scoring + ranking)
    ↓
-Output (CLI / CSV)
+Output: CLI + CSV + results.json
+   ↓
+UI (read-only visualization)
 ```
 
 Key design principles:
@@ -102,18 +118,16 @@ Key design principles:
 
 ### 🔜 Next Steps
 
-- Separate engine from I/O (prepare for UI)
-- Return structured results (equity + trades)
 - Experiment with multiple scoring models
-- Improve strategy quality
+- Improve strategy quality and parameters
+- Optional: CLI flags for symbol / interval / data source (without editing `main.rs`)
 
 ### 🚀 Future Goals
 
-- React UI for visualization (charts, comparisons)
-- Strategy parameter tuning
+- Strategy parameter tuning and sweeps
 - Parallel backtesting
 - Paper trading via exchange APIs
-- More advanced metrics (volatility, drawdown duration %)
+- More advanced metrics (e.g. volatility, drawdown duration as % of window)
 
 ---
 

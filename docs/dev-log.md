@@ -235,3 +235,116 @@ and understanding the trade-offs between them.
 - Experiment with different scoring models
 - Improve strategy quality (add new strategies)
 - Introduce a visualization layer (React)
+
+## Day 4 — Visualization, Market Context, and Data Evolution
+
+### What I built
+
+* Introduced a React + TypeScript UI layer
+* Implemented a strategy comparison table:
+
+  * Return %
+  * Drawdown %
+  * Sharpe ratio
+  * Score
+* Built an Equity Chart using Recharts:
+
+  * Multiple strategies plotted together
+  * Highlighted best-performing strategy
+* Added a Drawdown Chart:
+
+  * Visualizes depth and duration of losses
+  * Uses dynamic scaling for readability
+* Integrated real market data using Binance OHLC API
+* Refactored backend output:
+
+  * Introduced `BacktestRun`
+
+    * `market` (shared price data)
+    * `results` (per-strategy outputs)
+* Added a Market Price chart to provide context
+
+---
+
+### What I learned (Frontend / UI)
+
+* UI should be a **pure visualization layer**, not a computation layer
+* Clean data contracts between backend and frontend remove complexity
+* Charting libraries (Recharts) are far better than building custom rendering
+* Small visual decisions (scaling, opacity, line weight) have a big impact on readability
+* Good UI is about **clarity of insight**, not just displaying data
+
+---
+
+### What I learned (System Design)
+
+* Separating **market data from strategy results** is a better model than duplicating data per strategy
+* Designing data structures for consumption (UI) simplifies the entire system
+* Avoiding transformation layers in the UI keeps architecture clean
+* A small refactor (BacktestRun) significantly improved extensibility
+
+---
+
+### What I learned (Trading)
+
+* Buy & Hold is effectively a **proxy for the market**
+* A strategy should always be evaluated relative to a benchmark
+* Drawdown provides a very different perspective than equity:
+
+  * Equity shows outcome
+  * Drawdown shows pain
+* Strategies that look similar on equity can differ significantly in risk
+* Market conditions (trend vs flat) heavily influence strategy performance
+
+---
+
+### What I observed
+
+* My initial dataset was too flat, hiding meaningful differences between strategies
+* Switching to real OHLC data immediately made:
+
+  * equity curves more dynamic
+  * drawdowns more visible
+* Drawdown charts can appear “flat” if scaling is incorrect
+* Buy & Hold overlaps heavily with market data, but is still essential as a benchmark
+
+---
+
+### What I got wrong
+
+* Initially tried to normalize/transform data in the UI instead of fixing backend structure
+* Underestimated the importance of **chart scaling**
+* Assumed drawdown would always be visually distinct without adjusting the axis
+* Considered removing Buy & Hold due to visual redundancy, rather than reframing it as a benchmark
+
+---
+
+### Key insights
+
+Visualization is not just about displaying data.
+
+It is about:
+
+> **providing context that allows meaningful comparison and decision-making**
+
+and ensuring that:
+
+> **every chart answers a specific question**
+
+---
+
+### Next questions
+
+* How can I visualize **trade decisions** (entries/exits) on the market?
+* How do strategies behave under different datasets (BTC vs equities)?
+* Can I compare strategies relative to the benchmark more explicitly?
+* What is the best way to represent **risk vs return trade-offs visually**?
+
+---
+
+### Next steps
+
+* Add trade markers (buy/sell) to the price chart
+* Introduce dataset switching (multiple markets)
+* Improve comparison vs Buy & Hold (relative performance view)
+* Explore portfolio-level simulation (multiple strategies combined)

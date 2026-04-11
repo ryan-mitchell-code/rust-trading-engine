@@ -9,7 +9,13 @@ React + Vite front-end for **`outputs/results.json`**. It is read-only: charts a
 
 ## Run
 
-From this directory:
+From the **repository root**, one command runs the backtest and then this dev server:
+
+```bash
+./scripts/dev.sh
+```
+
+From **this directory** only:
 
 ```bash
 npm install

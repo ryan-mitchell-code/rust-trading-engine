@@ -6,6 +6,30 @@ This project focuses on building a **modular, extensible system** for testing an
 
 ---
 
+## ▶️ Run locally
+
+**Prerequisites:** [Rust](https://rustup.rs/) (stable), **Node 18+** and npm.
+
+From the repository root:
+
+```bash
+./scripts/dev.sh
+```
+
+This runs the backtest (`cargo run` in `backend/`, writing `outputs/results.json` and CSVs), then starts the React UI with Vite. Open the URL printed in the terminal (usually `http://localhost:5173`).
+
+- **Verbose backtest logs:** `./scripts/dev.sh -v` or `./scripts/dev.sh --verbose`
+- **UI only** (if you already have `outputs/results.json`): `npm --prefix ui install && npm --prefix ui run dev`
+
+**Manual steps** (equivalent to the script):
+
+```bash
+cargo run --manifest-path backend/Cargo.toml
+npm --prefix ui install && npm --prefix ui run dev
+```
+
+---
+
 ## 🎯 Goals
 
 - Learn Rust through building a real-world system

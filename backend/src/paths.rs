@@ -10,10 +10,17 @@ pub fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+#[allow(dead_code)]
 pub fn data_file(name: &str) -> PathBuf {
     workspace_root().join("data").join(name)
 }
 
 pub fn output_file(name: &str) -> PathBuf {
     workspace_root().join("outputs").join(name)
+}
+
+/// Cached Binance klines (`outputs/binance_cache_<symbol>_<interval>_<limit>.json`).
+pub fn binance_cache_file(symbol: &str, interval: &str, limit: u16) -> PathBuf {
+    let safe = symbol.replace(['/', '\\'], "_");
+    output_file(&format!("binance_cache_{safe}_{interval}_{limit}.json"))
 }

@@ -118,12 +118,14 @@ fn print_comparison_table(backtests: &[BacktestResult]) {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let verbose = std::env::args()
         .skip(1)
         .any(|a| a == "-v" || a == "--verbose");
 
-    let candles = data::load_csv(paths::data_file("formatted_btc.csv"));
+    // Uses `outputs/binance_cache_*.json` when present so repeat runs skip the API.
+    let candles = data::load_from_binance("BTCUSDT", "1d", 1000).await;
     let market = market_series(&candles);
 
     let mut backtests: Vec<BacktestResult> = vec![

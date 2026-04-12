@@ -1,0 +1,8 @@
+{
+  "name": "rust-trader",
+  "private": true,
+  "scripts": {
+    "dev": "./scripts/dev.sh",
+    "dev:ui": "npm --prefix ui run dev"
+  }
+}

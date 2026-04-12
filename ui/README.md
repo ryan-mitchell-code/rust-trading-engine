@@ -1,34 +1,46 @@
 # rust-trader UI
 
-React + Vite front-end for **`outputs/results.json`**. It is read-only: charts and tables display what the Rust backtester exported; see [`docs/ui-rules.md`](../docs/ui-rules.md).
+React + Vite front-end for the backtest dashboard. The normal flow calls **`POST /run`** on the Rust API and renders the returned **`BacktestRun`** JSON. See [`docs/ui-rules.md`](../docs/ui-rules.md).
 
 ## Prerequisites
 
 - Node **18+**
-- A generated **`../outputs/results.json`** (run the backend from the repo root)
+- The **backend API** running on **`http://127.0.0.1:3000`** (Vite proxies `/run` there — see `vite.config.ts`)
 
-## Run
+## Run (recommended)
 
-From the **repository root**, one command runs the backtest and then this dev server:
+From the **repository root**, start the API and this dev server together:
 
 ```bash
 ./scripts/dev.sh
 ```
 
-From **this directory** only:
+Or:
+
+```bash
+npm run dev
+```
+
+Open the URL Vite prints (usually **`http://localhost:5173`**), then use **Run Backtest** in the app.
+
+## Run (UI only)
+
+If you already started the API elsewhere (`cargo run --manifest-path backend/Cargo.toml -- --serve`):
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually `http://localhost:5173`). The dev server serves **`/results.json`** from the workspace file `outputs/results.json` via `backtest-results-plugin.ts`. If the file is missing, the endpoint returns JSON with an error and a hint to run the backend.
+## Optional: static `results.json`
+
+The Vite dev server can also serve **`../outputs/results.json`** at **`/results.json`** via `backtest-results-plugin.ts` (useful for quick inspection without hitting `POST /run`). If that file is missing, the plugin returns a JSON error with a hint.
 
 ## Build
 
 ```bash
 npm run build
-npm run preview   # optional: production build + local preview (still serves results.json the same way)
+npm run preview   # optional: production build + local preview
 ```
 
 ## Stack

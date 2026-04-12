@@ -6,27 +6,51 @@ This project focuses on building a **modular, extensible system** for testing an
 
 ---
 
-## ▶️ Run locally
+## ▶️ Run locally (API + UI — default)
 
 **Prerequisites:** [Rust](https://rustup.rs/) (stable), **Node 18+** and npm.
 
-From the repository root:
+From the repository root, start the **HTTP API** and the **Vite** dev server in one go:
 
 ```bash
 ./scripts/dev.sh
 ```
 
-This runs the backtest (`cargo run` in `backend/`, writing `outputs/results.json` and CSVs), then starts the React UI with Vite. Open the URL printed in the terminal (usually `http://localhost:5173`).
+Or:
 
-- **Verbose backtest logs:** `./scripts/dev.sh -v` or `./scripts/dev.sh --verbose`
-- **UI only** (if you already have `outputs/results.json`): `npm --prefix ui install && npm --prefix ui run dev`
+```bash
+npm run dev
+```
 
-**Manual steps** (equivalent to the script):
+This:
+
+1. Runs the backend with **`--serve`** — Axum listens on **`http://127.0.0.1:3000`**, exposing **`POST /run`** (dataset + interval → `BacktestRun` JSON).
+2. Starts the React app; Vite proxies **`/run`** to that API (see `ui/vite.config.ts`).
+
+Open **`http://localhost:5173`**, pick a dataset, and click **Run Backtest**. The first Rust compile can take about a minute; the script waits until port **3000** is open before starting the UI.
+
+**Manual (two terminals):**
+
+```bash
+cargo run --manifest-path backend/Cargo.toml -- --serve   # terminal 1 — API
+npm --prefix ui install && npm --prefix ui run dev       # terminal 2 — UI
+```
+
+**One-shot CLI backtest** (no API: runs once, prints the comparison table, writes `outputs/results.json` and CSVs):
 
 ```bash
 cargo run --manifest-path backend/Cargo.toml
+```
+
+Verbose engine logs: add `-v` or `--verbose` to that command (not used by `--serve`).
+
+**UI only** (Vite without the API — `Run Backtest` will fail until something serves `POST /run`):
+
+```bash
 npm --prefix ui install && npm --prefix ui run dev
 ```
+
+The Vite dev server can still expose **`/results.json`** from `outputs/results.json` for optional static viewing (`ui/backtest-results-plugin.ts`); the dashboard flow is **API-first** via **`POST /run`**.
 
 ---
 
@@ -87,7 +111,8 @@ npm --prefix ui install && npm --prefix ui run dev
 
 ### 🖥️ UI (React)
 
-- Reads `results.json` (Vite dev server serves workspace `outputs/results.json`)
+- **Default:** **`POST /run`** to the Rust API (same `BacktestRun` JSON as file export)
+- **Optional dev:** Vite can serve workspace **`outputs/results.json`** at `/results.json` for static viewing
 - Strategy comparison table, **market price**, **equity**, and **drawdown** charts (Buy & Hold shown as a neutral benchmark style)
 
 ---
@@ -106,8 +131,8 @@ Metrics (performance measurement)
 Evaluation (scoring + ranking)
    ↓
 Output: CLI + CSV + results.json
-   ↓
-UI (read-only visualization)
+  ↓
+UI (POST /run to API, or optional static results.json in dev)
 ```
 
 Key design principles:

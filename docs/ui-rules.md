@@ -1,10 +1,9 @@
 # Core Principles
 
-UI is read-only:
-- No business logic in React
-- No recalculating metrics (Sharpe, max drawdown, etc.)
+UI is display + API wiring:
+- No business logic in React (no recomputing Sharpe, max drawdown, etc.)
 - Do **not** recompute drawdown from equity in the front-end; use the **`drawdown_curve`** series from the backend JSON
-- Everything comes from `outputs/results.json` (shape: **`BacktestRun`** — shared `market` + per-strategy rows)
+- Runtime data comes from **`POST /run`** (same **`BacktestRun`** shape as `outputs/results.json`)
 
 Backend = source of truth:
 - If something is missing → add it in Rust, not React

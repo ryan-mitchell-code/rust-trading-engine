@@ -2,7 +2,8 @@ import type { BacktestRun } from "../types.ts";
 
 export type Dataset = "BTCUSDT" | "ETHUSDT";
 
-const INTERVAL = "1d" as const;
+/** Posted to `POST /run` — candlestick chart uses this for time scale (e.g. business days for `1d`). */
+export const BACKTEST_INTERVAL = "1d" as const;
 
 async function messageFromFailedResponse(res: Response): Promise<string> {
   const fallback = `${res.status} ${res.statusText}`;
@@ -29,7 +30,7 @@ export async function fetchBacktestRun(dataset: Dataset): Promise<BacktestRun> {
   const res = await fetch("/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dataset, interval: INTERVAL }),
+    body: JSON.stringify({ dataset, interval: BACKTEST_INTERVAL }),
   });
   if (!res.ok) {
     throw new Error(await messageFromFailedResponse(res));

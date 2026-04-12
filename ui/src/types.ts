@@ -24,8 +24,8 @@ export interface ResultSummary {
   score: number;
 }
 
-/** `Vec<(String, f64)>` → JSON array of `[timestamp, close]` pairs (one bar per candle). */
-export type MarketSeries = [string, number][];
+/** `Vec<(String, f64, f64, f64, f64)>` → JSON array of `[timestamp, open, high, low, close]` per bar. */
+export type MarketSeries = [string, number, number, number, number][];
 
 export interface BacktestResult {
   /** Strategy id — stable key for this backtest (not duplicated under `summary`). */

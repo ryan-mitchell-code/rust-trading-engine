@@ -105,7 +105,7 @@ The Vite dev server can still expose **`/results.json`** from `outputs/results.j
 
 ### 📤 Outputs
 
-- **`outputs/results.json`**: structured **`BacktestRun`** — shared **market** (timestamp + close per bar) plus **per-strategy** results (summaries, equity as `f64[]`, drawdown as `f64[]`, trades)
+- **`outputs/results.json`**: structured **`BacktestRun`** — shared **market** (timestamp + OHLC per bar) plus **per-strategy** results (summaries, equity as `f64[]`, drawdown as `f64[]`, trades)
 - **CSV**: equity curve and trades per strategy (for spreadsheets)
 - **CLI**: comparison table with full metrics
 

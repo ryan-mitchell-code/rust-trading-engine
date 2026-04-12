@@ -13,11 +13,11 @@ const SHARPE_WEIGHT: f64 = 2.0;
 const RETURN_WEIGHT: f64 = 1.0;
 const DRAWDOWN_WEIGHT: f64 = 1.0;
 
-fn write_backtest_outputs(market: &[(String, f64)], bt: &BacktestResult) {
+fn write_backtest_outputs(market: &[(String, f64, f64, f64, f64)], bt: &BacktestResult) {
     let equity_rows: Vec<Vec<String>> = market
         .iter()
         .zip(bt.equity_curve.iter())
-        .map(|((ts, _), cap)| vec![ts.clone(), format!("{:.2}", cap)])
+        .map(|((ts, _, _, _, _), cap)| vec![ts.clone(), format!("{:.2}", cap)])
         .collect();
     csv::write_csv(&bt.summary.equity_csv, &["timestamp", "capital"], &equity_rows)
         .expect("write equity csv");

@@ -10,13 +10,6 @@ import {
 } from "recharts";
 import type { BacktestResult, MarketSeries } from "../types";
 import {
-  formatChartTooltipTimestamp,
-  formatChartXAxisTickLabel,
-  lineChartXMarginBottom,
-  xAxisMinTickGap,
-  xAxisTickStyle,
-} from "./chartXAxis.ts";
-import {
   BENCHMARK_STRATEGY_NAME,
   BENCHMARK_STROKE,
   BENCHMARK_STROKE_DASHARRAY,
@@ -24,7 +17,14 @@ import {
   LINE_STROKE_WIDTH,
   LINE_STROKE_WIDTH_HIGHLIGHT,
   SERIES_COLORS,
-} from "./EquityChart.tsx";
+} from "../constants/chartTheme.ts";
+import {
+  formatChartTooltipTimestamp,
+  formatChartXAxisTickLabel,
+  lineChartXMarginBottom,
+  xAxisMinTickGap,
+  xAxisTickStyle,
+} from "./chartXAxis.ts";
 
 /** Non-benchmark series: slightly transparent so benchmark reads clearly. */
 const ACTIVE_STRATEGY_STROKE_OPACITY = 0.7;

@@ -213,17 +213,18 @@ export function PriceChart({ market, trades }: PriceChartProps) {
     trades !== undefined && trades.length > 0 ? buildTradeMarkers(trades) : [];
 
   return (
-    <div className="h-80 w-full rounded-lg border border-slate-800 bg-slate-900/40 p-2">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart
-          data={chartData}
-          margin={{
-            top: 8,
-            right: 12,
-            bottom: lineChartXMarginBottom(pointCount),
-            left: 8,
-          }}
-        >
+    <div className="w-full rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+      <div className="h-80 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={chartData}
+            margin={{
+              top: 8,
+              right: 12,
+              bottom: lineChartXMarginBottom(pointCount),
+              left: 8,
+            }}
+          >
           <XAxis
             type="number"
             dataKey="time"
@@ -281,8 +282,32 @@ export function PriceChart({ market, trades }: PriceChartProps) {
               }}
             />
           )}
-        </ComposedChart>
-      </ResponsiveContainer>
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      {tradeMarkers.length > 0 && (
+        <div
+          className="mt-2 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 border-t border-slate-800/80 pt-2 text-xs text-slate-400"
+          aria-label="Trade marker legend"
+        >
+          <span className="inline-flex items-center gap-2">
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-slate-950"
+              style={{ backgroundColor: BUY_FILL }}
+              aria-hidden
+            />
+            <span className="text-slate-300">BUY</span>
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-slate-950"
+              style={{ backgroundColor: SELL_FILL }}
+              aria-hidden
+            />
+            <span className="text-slate-300">SELL</span>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

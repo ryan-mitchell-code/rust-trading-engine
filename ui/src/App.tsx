@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { DrawdownChart } from "./components/DrawdownChart.tsx";
 import {
   BENCHMARK_STRATEGY_NAME,
@@ -21,6 +21,36 @@ const shellMaxClass = "mx-auto w-full max-w-[1600px]";
 
 const cardClass =
   "rounded-xl border border-slate-800 bg-slate-900/60 px-5 py-5 shadow-sm sm:px-6 sm:py-6";
+
+type HelpHintProps = {
+  /** Shown in the tooltip panel */
+  text: string;
+  /** Accessible name for the help control */
+  label: string;
+};
+
+function HelpHint({ text, label }: HelpHintProps) {
+  const tipId = useId();
+  return (
+    <span className="group relative inline-flex shrink-0">
+      <button
+        type="button"
+        className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-slate-600 bg-slate-800/90 px-1 text-[10px] font-semibold leading-none text-slate-400 transition hover:border-slate-500 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60"
+        aria-label={label}
+        aria-describedby={tipId}
+      >
+        ?
+      </button>
+      <span
+        id={tipId}
+        role="tooltip"
+        className="pointer-events-none invisible absolute left-1/2 top-full z-40 mt-2 w-64 max-w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left text-xs leading-relaxed text-slate-300 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
 
 type DashboardView = "charts" | "table";
 
@@ -153,31 +183,11 @@ export function App() {
         {run !== null && (
           <div className="space-y-8">
             <div className={`space-y-4 ${cardClass}`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                  <label
-                    htmlFor="strategy-select"
-                    className="shrink-0 text-sm font-medium text-slate-400"
-                  >
-                    Strategy
-                  </label>
-                  <select
-                    id="strategy-select"
-                    value={selectedStrategy ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setSelectedStrategy(v === "" ? null : v);
-                    }}
-                    className="select-inset-chevron w-full min-w-[12rem] rounded-lg border border-slate-700 bg-slate-950/80 py-2 pl-3 pr-10 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 sm:max-w-xs"
-                  >
-                    <option value="">All</option>
-                    {run.results.map((r) => (
-                      <option key={r.name} value={r.name}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="flex justify-end">
+                <HelpHint
+                  label="How strategy selection works"
+                  text="Click a strategy card to focus charts and trade markers on that run. Click the same card again to show all strategies."
+                />
               </div>
 
               <div
@@ -334,14 +344,14 @@ export function App() {
               </div>
             ) : (
               <section className={`space-y-4 ${cardClass}`}>
-                <div>
+                <div className="flex items-start justify-between gap-3">
                   <h2 className="text-sm font-semibold tracking-tight text-slate-200">
                     Strategy comparison
                   </h2>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    Use the strategy control or a stats card to focus; click
-                    again to clear. Table rows work the same way.
-                  </p>
+                  <HelpHint
+                    label="How table selection works"
+                    text="Click a row to focus charts and trade markers on that strategy; click again to clear."
+                  />
                 </div>
                 <StrategyTable
                   results={run.results}

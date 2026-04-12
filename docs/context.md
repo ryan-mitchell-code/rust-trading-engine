@@ -40,7 +40,7 @@ The system produces:
 
 - Equity curve (capital over time) and per-bar drawdown series (from the engine)
 - Trade log (buy/sell events and outcomes)
-- Shared market series in `results.json` (timestamp + close per bar)
+- Shared market series in `results.json` (per bar: timestamp + OHLC)
 
 These outputs are available as:
 
@@ -102,7 +102,7 @@ This project documents both implementation and learning.
 - **Engine**: positions, capital, equity curve, per-bar drawdown series, trade log
 - **Metrics**: returns, max drawdown, drawdown duration, per-period Sharpe, scoring vs buy & hold
 - **Export**: `BacktestRun` JSON (`market` + `results`), per-strategy CSVs, CLI comparison table
-- **UI**: React app — strategy table, market price, equity, and drawdown charts
+- **UI**: React app — strategy table, market candlestick chart, equity, and drawdown charts
 
 ---
 

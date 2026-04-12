@@ -32,9 +32,15 @@ npm install
 npm run dev
 ```
 
+## Charts & data
+
+- **Market:** OHLC **candlestick** chart ([TradingView **lightweight-charts**](https://github.com/tradingview/lightweight-charts)); bar times follow the backtest **interval** (e.g. business-day time for daily bars).
+- **Equity / drawdown:** [Recharts](https://recharts.org/) line charts.
+- **`BacktestRun.market`** in JSON is an array of **`[timestamp, open, high, low, close]`** per bar (see Rust `engine::market_series`).
+
 ## Optional: static `results.json`
 
-The Vite dev server can also serve **`../outputs/results.json`** at **`/results.json`** via `backtest-results-plugin.ts` (useful for quick inspection without hitting `POST /run`). If that file is missing, the plugin returns a JSON error with a hint.
+The Vite dev server can serve **`../outputs/results.json`** at **`/results.json`** via `backtest-results-plugin.ts` (useful for quick inspection without hitting `POST /run`). The file must match the current **`BacktestRun`** shape (including OHLC **`market`** rows). If the file is missing, the plugin returns a JSON error with a hint.
 
 ## Build
 
@@ -45,4 +51,5 @@ npm run preview   # optional: production build + local preview
 
 ## Stack
 
-- React 19, TypeScript, Tailwind CSS 4, Recharts
+- React 19, TypeScript, Tailwind CSS 4
+- **lightweight-charts** (candlesticks), **Recharts** (equity / drawdown)

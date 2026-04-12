@@ -1,9 +1,6 @@
 import { useCallback, useId, useState } from "react";
 import { DrawdownChart } from "./components/DrawdownChart.tsx";
-import {
-  BENCHMARK_STRATEGY_NAME,
-  EquityChart,
-} from "./components/EquityChart.tsx";
+import { EquityChart } from "./components/EquityChart.tsx";
 import { PriceChart } from "./components/PriceChart.tsx";
 import { StrategyTable } from "./components/StrategyTable.tsx";
 import { fetchBacktestRun, type Dataset } from "./services/api.ts";
@@ -88,12 +85,6 @@ export function App() {
   const selected =
     run && findSelectedResult(run.results, selectedStrategy);
   const tradesForChart = selected?.trades;
-
-  const buyHoldReturnPct =
-    run !== null
-      ? run.results.find((r) => r.name === BENCHMARK_STRATEGY_NAME)?.summary
-          .return_pct
-      : undefined;
 
   let bestStrategyName: string | null = null;
   if (run !== null) {
@@ -200,10 +191,7 @@ export function App() {
                   const isBest =
                     bestStrategyName !== null && r.name === bestStrategyName;
                   const s = r.summary;
-                  const vsBh =
-                    buyHoldReturnPct !== undefined
-                      ? s.return_pct - buyHoldReturnPct
-                      : null;
+                  const vsBh = s.relative_return;
                   return (
                     <button
                       key={r.name}
@@ -250,19 +238,17 @@ export function App() {
                             {s.sharpe_ratio.toFixed(4)}
                           </dd>
                         </div>
-                        {vsBh !== null && (
-                          <div className="flex justify-between gap-3">
-                            <dt className="text-slate-500">vs B&H</dt>
-                            <dd
-                              className={`tabular-nums ${
-                                vsBh >= 0 ? "text-emerald-400" : "text-red-400"
-                              }`}
-                            >
-                              {vsBh >= 0 ? "+" : ""}
-                              {vsBh.toFixed(2)}%
-                            </dd>
-                          </div>
-                        )}
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-slate-500">vs B&H</dt>
+                          <dd
+                            className={`tabular-nums ${
+                              vsBh >= 0 ? "text-emerald-400" : "text-red-400"
+                            }`}
+                          >
+                            {vsBh >= 0 ? "+" : ""}
+                            {vsBh.toFixed(2)}%
+                          </dd>
+                        </div>
                       </dl>
                     </button>
                   );

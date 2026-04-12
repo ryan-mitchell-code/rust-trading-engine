@@ -1,16 +1,17 @@
 import { useCallback, useId, useState } from "react";
 import { AppHeader } from "./components/AppHeader.tsx";
-import { ChartSection } from "./components/ChartSection.tsx";
+import { CandlestickChart } from "./components/charts/CandlestickChart.tsx";
+import { ChartSection } from "./components/charts/ChartSection.tsx";
+import { DrawdownChart } from "./components/charts/DrawdownChart.tsx";
+import { EquityChart } from "./components/charts/EquityChart.tsx";
 import {
   DashboardViewToggle,
   type DashboardView,
 } from "./components/DashboardViewToggle.tsx";
-import { DrawdownChart } from "./components/DrawdownChart.tsx";
-import { EquityChart } from "./components/EquityChart.tsx";
 import { HelpHint } from "./components/HelpHint.tsx";
-import { CandlestickChart } from "./components/CandlestickChart.tsx";
-import { StrategyMetricCards } from "./components/StrategyMetricCards.tsx";
-import { StrategyTable } from "./components/StrategyTable.tsx";
+import { StrategyMetricCards } from "./components/results/StrategyMetricCards.tsx";
+import { StrategyTable } from "./components/results/StrategyTable.tsx";
+import { StrategyPanel } from "./components/strategy-panel/StrategyPanel.tsx";
 import { cardClass, shellMaxClass } from "./constants/layout.ts";
 import { bestStrategyNameByReturn } from "./lib/backtestMetrics.ts";
 import {
@@ -25,8 +26,13 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dataset, setDataset] = useState<Dataset>("BTCUSDT");
-  const [maShort, setMaShort] = useState(10);
-  const [maLong, setMaLong] = useState(50);
+  const [maParams, setMaParams] = useState({ short: 10, long: 50 });
+  const [rsiParams, setRsiParams] = useState({
+    period: 14,
+    overbought: 70,
+    oversold: 30,
+  });
+  const [showSettings, setShowSettings] = useState(false);
   const [view, setView] = useState<DashboardView>("charts");
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
 
@@ -46,10 +52,7 @@ export function App() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchBacktestRun(dataset, {
-        short: maShort,
-        long: maLong,
-      });
+      const data = await fetchBacktestRun(dataset, maParams, rsiParams);
       setRun(data);
     } catch (e: unknown) {
       const message =
@@ -60,7 +63,7 @@ export function App() {
       setLoading(false);
       setSelectedStrategy(null);
     }
-  }, [dataset, maShort, maLong]);
+  }, [dataset, maParams, rsiParams]);
 
   const bestStrategyName =
     run !== null ? bestStrategyNameByReturn(run.results) : null;
@@ -69,18 +72,56 @@ export function App() {
     <div className="min-h-dvh bg-slate-950 text-slate-100">
       <AppHeader
         dataset={dataset}
-        maShort={maShort}
-        maLong={maLong}
         loading={loading}
+        showSettings={showSettings}
         onDatasetChange={setDataset}
-        onMaShortChange={setMaShort}
-        onMaLongChange={setMaLong}
+        onToggleSettings={() => setShowSettings((v) => !v)}
         onRunBacktest={handleRunBacktest}
       />
 
       <main
         className={`space-y-8 px-4 py-6 sm:py-8 lg:px-6 lg:py-10 xl:px-8 ${shellMaxClass}`}
       >
+        {!showSettings && (
+          <p
+            className="text-xs text-slate-500 tabular-nums"
+            aria-live="polite"
+          >
+            <span className="text-slate-600">MA</span>{" "}
+            {maParams.short}/{maParams.long}
+            <span className="mx-2 text-slate-700">·</span>
+            <span className="text-slate-600">RSI</span> P{rsiParams.period}{" "}
+            OB{rsiParams.overbought} OS{rsiParams.oversold}
+          </p>
+        )}
+
+        {showSettings && (
+          <div
+            className="rounded-xl border border-slate-800/80 bg-slate-900/95 p-4 shadow-md shadow-black/25 ring-1 ring-white/[0.06] sm:p-5"
+            role="region"
+            aria-label="Strategy parameter editor"
+          >
+            <StrategyPanel
+              loading={loading}
+              maParams={maParams}
+              rsiParams={rsiParams}
+              onMaShortChange={(short) =>
+                setMaParams((p) => ({ ...p, short }))
+              }
+              onMaLongChange={(long) => setMaParams((p) => ({ ...p, long }))}
+              onRsiPeriodChange={(period) =>
+                setRsiParams((p) => ({ ...p, period }))
+              }
+              onRsiOverboughtChange={(overbought) =>
+                setRsiParams((p) => ({ ...p, overbought }))
+              }
+              onRsiOversoldChange={(oversold) =>
+                setRsiParams((p) => ({ ...p, oversold }))
+              }
+            />
+          </div>
+        )}
+
         {error !== null && (
           <div
             className="rounded-xl border border-amber-900/50 bg-amber-950/35 px-5 py-4 text-sm text-amber-200 shadow-sm sm:px-6 sm:py-5"

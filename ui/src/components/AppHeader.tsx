@@ -1,25 +1,22 @@
 import { shellMaxClass } from "../constants/layout.ts";
+import { cn } from "../lib/cn.ts";
 import type { Dataset } from "../services/api.ts";
 
 type AppHeaderProps = {
   dataset: Dataset;
-  maShort: number;
-  maLong: number;
   loading: boolean;
+  showSettings: boolean;
   onDatasetChange: (dataset: Dataset) => void;
-  onMaShortChange: (n: number) => void;
-  onMaLongChange: (n: number) => void;
+  onToggleSettings: () => void;
   onRunBacktest: () => void;
 };
 
 export function AppHeader({
   dataset,
-  maShort,
-  maLong,
   loading,
+  showSettings,
   onDatasetChange,
-  onMaShortChange,
-  onMaLongChange,
+  onToggleSettings,
   onRunBacktest,
 }: AppHeaderProps) {
   return (
@@ -53,42 +50,21 @@ export function AppHeader({
             <option value="BTCUSDT">BTCUSDT</option>
             <option value="ETHUSDT">ETHUSDT</option>
           </select>
-          <label
-            htmlFor="ma-short"
-            className="text-sm font-medium text-slate-400"
-          >
-            Short MA
-          </label>
-          <input
-            id="ma-short"
-            type="number"
-            min={1}
-            step={1}
-            value={maShort}
-            onChange={(e) =>
-              onMaShortChange(Math.max(1, parseInt(e.target.value, 10) || 1))
-            }
+          <button
+            type="button"
+            onClick={onToggleSettings}
             disabled={loading}
-            className="w-20 rounded-lg border border-slate-700 bg-slate-950/80 py-2 pl-3 pr-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-          />
-          <label
-            htmlFor="ma-long"
-            className="text-sm font-medium text-slate-400"
+            aria-pressed={showSettings}
+            aria-expanded={showSettings}
+            className={cn(
+              "rounded-lg border px-3 py-2 text-sm font-medium shadow-sm transition focus:outline-none focus:ring-2 focus:ring-sky-500/40 disabled:cursor-not-allowed disabled:opacity-50",
+              showSettings
+                ? "border-sky-600 bg-sky-950/40 text-sky-100 ring-1 ring-sky-500/30"
+                : "border-slate-700 bg-slate-950/80 text-slate-300 hover:border-slate-600 hover:bg-slate-900/80",
+            )}
           >
-            Long MA
-          </label>
-          <input
-            id="ma-long"
-            type="number"
-            min={2}
-            step={1}
-            value={maLong}
-            onChange={(e) =>
-              onMaLongChange(Math.max(2, parseInt(e.target.value, 10) || 2))
-            }
-            disabled={loading}
-            className="w-20 rounded-lg border border-slate-700 bg-slate-950/80 py-2 pl-3 pr-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-          />
+            Settings
+          </button>
           <button
             type="button"
             onClick={onRunBacktest}

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cardClass } from "../constants/layout.ts";
+import { cardClass } from "../../constants/layout.ts";
 
 type ChartSectionProps = {
   title: string;

@@ -12,6 +12,12 @@ Keep components dumb + composable:
 - Table = display only
 - Chart = display only
 
+`src/components/` is grouped by role (shared shell controls stay at the top level):
+- **`charts/`** — candlestick / equity / drawdown charts, `ChartSection`, `chartXAxis`
+- **`strategy-panel/`** — strategy settings UI (`StrategyPanel`, `StrategyNumberFields`, styles)
+- **`results/`** — strategy metric cards and comparison table
+- **Root** — `AppHeader`, `HelpHint`, `DashboardViewToggle`
+
 Prefer flat data:
 - Avoid deep nesting in JSON
 - Makes TS + UI simpler

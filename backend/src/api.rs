@@ -22,6 +22,18 @@ fn default_ma_long() -> u32 {
     50
 }
 
+fn default_rsi_period() -> u32 {
+    14
+}
+
+fn default_rsi_overbought() -> f64 {
+    70.0
+}
+
+fn default_rsi_oversold() -> f64 {
+    30.0
+}
+
 #[derive(Deserialize)]
 pub struct RunRequest {
     pub dataset: String,
@@ -30,6 +42,12 @@ pub struct RunRequest {
     pub ma_short: u32,
     #[serde(default = "default_ma_long")]
     pub ma_long: u32,
+    #[serde(default = "default_rsi_period")]
+    pub rsi_period: u32,
+    #[serde(default = "default_rsi_overbought")]
+    pub rsi_overbought: f64,
+    #[serde(default = "default_rsi_oversold")]
+    pub rsi_oversold: f64,
 }
 
 pub async fn serve() {
@@ -62,11 +80,15 @@ async fn run_handler(Json(req): Json<RunRequest>) -> impl IntoResponse {
         interval = %req.interval,
         ma_short = req.ma_short,
         ma_long = req.ma_long,
+        rsi_period = req.rsi_period,
+        rsi_overbought = req.rsi_overbought,
+        rsi_oversold = req.rsi_oversold,
         "POST /run"
     );
 
     let ma_short = req.ma_short as usize;
     let ma_long = req.ma_long as usize;
+    let rsi_period = req.rsi_period as usize;
     if ma_short == 0 || ma_long == 0 {
         return (
             StatusCode::BAD_REQUEST,
@@ -86,7 +108,32 @@ async fn run_handler(Json(req): Json<RunRequest>) -> impl IntoResponse {
             .into_response();
     }
 
-    let config = RunConfig::with_ma(ma_short, ma_long);
+    if rsi_period == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "rsi_period must be at least 1"
+            })),
+        )
+            .into_response();
+    }
+    if req.rsi_oversold >= req.rsi_overbought {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "rsi_oversold must be less than rsi_overbought"
+            })),
+        )
+            .into_response();
+    }
+
+    let config = RunConfig {
+        ma_short,
+        ma_long,
+        rsi_period,
+        rsi_overbought: req.rsi_overbought,
+        rsi_oversold: req.rsi_oversold,
+    };
 
     match data::load_from_binance(&req.dataset, &req.interval, DEFAULT_LIMIT).await {
         Ok(candles) => {

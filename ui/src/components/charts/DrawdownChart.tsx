@@ -2,12 +2,13 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import type { BacktestResult, MarketSeries } from "../types";
+import type { BacktestResult, MarketSeries } from "../../types.ts";
 import {
   BENCHMARK_STRATEGY_NAME,
   BENCHMARK_STROKE,
@@ -16,7 +17,7 @@ import {
   LINE_STROKE_WIDTH,
   LINE_STROKE_WIDTH_HIGHLIGHT,
   SERIES_COLORS,
-} from "../constants/chartTheme.ts";
+} from "../../constants/chartTheme.ts";
 import {
   formatChartTooltipTimestamp,
   formatChartXAxisTickLabel,
@@ -25,70 +26,90 @@ import {
   xAxisTickStyle,
 } from "./chartXAxis.ts";
 
-/** Non-selected series when a strategy is focused (table + charts). */
+/** Non-benchmark series: slightly transparent so benchmark reads clearly. */
+const ACTIVE_STRATEGY_STROKE_OPACITY = 0.7;
+
+/** Non-selected series when a strategy is focused. */
 const DIM_OPACITY = 0.3;
 
-type EquityChartProps = {
+type DrawdownChartProps = {
   market: MarketSeries;
   results: BacktestResult[];
   selectedStrategy?: string | null;
 };
 
-/** Capital display: matches Y-axis ticks and tooltip values. */
-function formatCapital(n: number): string {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+/** Backend drawdown ratios → percentage strings (2 decimals). */
+function formatDrawdownPercent(n: number): string {
+  return `${(n * 100).toFixed(2)}%`;
 }
 
-/** Tight Y-axis around the plotted capitals: small padding so lines aren’t clipped at the edges. */
-function paddedCapitalDomain(
-  domain: readonly [number, number],
-): [number, number] {
-  const dataMin = domain[0];
-  const dataMax = domain[1];
-  const span = dataMax - dataMin || Math.max(Math.abs(dataMin) * 0.001, 1);
-  const pad = span * 0.05;
-  return [dataMin - pad, dataMax + pad];
+/** Most negative drawdown ratio across all series (worst point). */
+function minDrawdownAcrossStrategies(
+  chartData: Record<string, string | number>[],
+  strategyNames: string[],
+): number {
+  let minDd = 0;
+  for (const row of chartData) {
+    for (const name of strategyNames) {
+      const v = row[name];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        minDd = Math.min(minDd, v);
+      }
+    }
+  }
+  return minDd;
 }
 
 /**
- * One row per bar; `timestamp` from `market`, plus one numeric field per strategy `name` (capital).
- * Curves are aligned by index with `market` — does not mutate inputs.
+ * Y domain: top fixed at 0 (peak); bottom from worst drawdown with ~10% padding below.
+ * Degenerate flat-at-peak case uses a thin band so the axis is usable (similar spirit to EquityChart padding).
  */
-function mergeEquityCurves(
+function drawdownYDomain(minDd: number): [number, number] {
+  if (minDd >= 0) {
+    return [-0.01, 0];
+  }
+  return [minDd * 1.1, 0];
+}
+
+/**
+ * One row per bar; `timestamp` from `market`, plus one field per strategy `name` (drawdown ratio).
+ * Uses backend `drawdown_curve` only — no drawdown math here.
+ */
+function mergeDrawdownCurves(
   market: MarketSeries,
   results: BacktestResult[],
 ): Record<string, string | number>[] {
-  const lengths = results.map((r) => r.equity_curve.length);
+  const lengths = results.map((r) => r.drawdown_curve.length);
   const n = Math.min(market.length, ...lengths);
   const rows: Record<string, string | number>[] = [];
   for (let i = 0; i < n; i++) {
     const timestamp = market[i][0];
     const row: Record<string, string | number> = { timestamp };
     for (const r of results) {
-      row[r.name] = r.equity_curve[i];
+      row[r.name] = r.drawdown_curve[i];
     }
     rows.push(row);
   }
   return rows;
 }
 
-export function EquityChart({
+export function DrawdownChart({
   market,
   results,
   selectedStrategy = null,
-}: EquityChartProps) {
-  const withCurves = results.filter((r) => r.equity_curve.length > 0);
+}: DrawdownChartProps) {
+  const withCurves = results.filter((r) => r.drawdown_curve.length > 0);
   if (withCurves.length === 0 || market.length === 0) {
     return (
-      <p className="text-sm text-slate-500">No equity curves to plot.</p>
+      <p className="text-sm text-slate-500">No drawdown series to plot.</p>
     );
   }
 
-  const chartData = mergeEquityCurves(market, withCurves);
+  const chartData = mergeDrawdownCurves(market, withCurves);
   const strategyNames = withCurves.map((r) => r.name);
+  const yDomain = drawdownYDomain(
+    minDrawdownAcrossStrategies(chartData, strategyNames),
+  );
   const topCapitalName = withCurves.reduce((best, r) =>
     r.summary.final_capital > best.summary.final_capital ? r : best,
   ).name;
@@ -98,7 +119,7 @@ export function EquityChart({
     selectedStrategy != null && selectedStrategy !== "";
 
   let activePaletteIndex = 0;
-  const equityLines = strategyNames.map((name) => {
+  const drawdownLines = strategyNames.map((name) => {
     const isBenchmark = name === BENCHMARK_STRATEGY_NAME;
     const stroke = isBenchmark
       ? BENCHMARK_STROKE
@@ -106,7 +127,7 @@ export function EquityChart({
     const isTopCapital = !isBenchmark && name === topCapitalName;
     const isHighlighted = hasSelection && name === selectedStrategy;
 
-    let strokeOpacity = 1;
+    let strokeOpacity: number;
     let strokeWidth: number;
     if (hasSelection) {
       strokeOpacity = isHighlighted ? 1 : DIM_OPACITY;
@@ -116,6 +137,7 @@ export function EquityChart({
           ? BENCHMARK_STROKE_WIDTH
           : LINE_STROKE_WIDTH;
     } else {
+      strokeOpacity = isBenchmark ? 1 : ACTIVE_STRATEGY_STROKE_OPACITY;
       strokeWidth = isBenchmark
         ? BENCHMARK_STROKE_WIDTH
         : isTopCapital
@@ -168,11 +190,11 @@ export function EquityChart({
           />
           <YAxis
             type="number"
-            domain={paddedCapitalDomain}
+            domain={yDomain}
             stroke="#64748b"
             tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={(v) =>
-              typeof v === "number" ? formatCapital(v) : String(v)
+              typeof v === "number" ? formatDrawdownPercent(v) : String(v)
             }
           />
           <Tooltip
@@ -184,7 +206,9 @@ export function EquityChart({
             labelStyle={{ color: "#e2e8f0" }}
             itemStyle={{ color: "#e2e8f0" }}
             formatter={(value) =>
-              typeof value === "number" ? formatCapital(value) : String(value)
+              typeof value === "number"
+                ? formatDrawdownPercent(value)
+                : String(value)
             }
             labelFormatter={(label) => formatChartTooltipTimestamp(label)}
           />
@@ -200,7 +224,13 @@ export function EquityChart({
               letterSpacing: "0.01em",
             }}
           />
-          {equityLines}
+          <ReferenceLine
+            y={0}
+            stroke="#94a3b8"
+            strokeDasharray="4 4"
+            strokeOpacity={0.85}
+          />
+          {drawdownLines}
         </LineChart>
       </ResponsiveContainer>
     </div>

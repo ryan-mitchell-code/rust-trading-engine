@@ -9,7 +9,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { MarketSeries } from "../types.ts";
+import type { MarketSeries } from "../../types.ts";
 import { parseChartTimestamp } from "./chartXAxis.ts";
 
 type CandlestickChartProps = {

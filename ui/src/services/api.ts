@@ -28,9 +28,16 @@ async function messageFromFailedResponse(res: Response): Promise<string> {
 
 export type MaParams = { short: number; long: number };
 
+export type RsiParams = {
+  period: number;
+  overbought: number;
+  oversold: number;
+};
+
 export async function fetchBacktestRun(
   dataset: Dataset,
-  ma: MaParams,
+  maParams: MaParams,
+  rsiParams: RsiParams,
 ): Promise<BacktestRun> {
   const res = await fetch("/run", {
     method: "POST",
@@ -38,8 +45,11 @@ export async function fetchBacktestRun(
     body: JSON.stringify({
       dataset,
       interval: BACKTEST_INTERVAL,
-      ma_short: ma.short,
-      ma_long: ma.long,
+      ma_short: maParams.short,
+      ma_long: maParams.long,
+      rsi_period: rsiParams.period,
+      rsi_overbought: rsiParams.overbought,
+      rsi_oversold: rsiParams.oversold,
     }),
   });
   if (!res.ok) {

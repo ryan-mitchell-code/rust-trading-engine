@@ -1,10 +1,10 @@
-import { cn } from "../lib/cn.ts";
+import { cn } from "../../lib/cn.ts";
 import {
   metricDrawdownToneClass,
   metricReturnToneClass,
   metricSharpeToneClass,
-} from "../lib/metricStyles.ts";
-import type { BacktestResult } from "../types.ts";
+} from "../../lib/metricStyles.ts";
+import type { BacktestResult } from "../../types.ts";
 
 type StrategyTableProps = {
   results: BacktestResult[];

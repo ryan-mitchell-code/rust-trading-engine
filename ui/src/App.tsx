@@ -3,6 +3,7 @@ import { DrawdownChart } from "./components/DrawdownChart.tsx";
 import { EquityChart } from "./components/EquityChart.tsx";
 import { PriceChart } from "./components/PriceChart.tsx";
 import { StrategyTable } from "./components/StrategyTable.tsx";
+import { fetchBacktestRun, type Dataset } from "./services/api.ts";
 import type { BacktestResult, BacktestRun } from "./types.ts";
 
 function findSelectedResult(
@@ -13,25 +14,19 @@ function findSelectedResult(
   return results.find((r) => r.name === selectedStrategy);
 }
 
-const INTERVAL = "1d" as const;
+const shellMaxClass = "mx-auto w-full max-w-[1600px]";
 
-async function fetchBacktestRun(dataset: string): Promise<BacktestRun> {
-  const res = await fetch("/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dataset, interval: INTERVAL }),
-  });
-  if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`);
-  }
-  return res.json() as Promise<BacktestRun>;
-}
+const cardClass =
+  "rounded-xl border border-slate-800 bg-slate-900/60 px-5 py-5 shadow-sm sm:px-6 sm:py-6";
+
+type DashboardView = "charts" | "table";
 
 export function App() {
   const [run, setRun] = useState<BacktestRun | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [dataset, setDataset] = useState("BTCUSDT");
+  const [dataset, setDataset] = useState<Dataset>("BTCUSDT");
+  const [view, setView] = useState<DashboardView>("charts");
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
 
   const handleToggleStrategy = useCallback((strategyName: string) => {
@@ -45,53 +40,50 @@ export function App() {
     setError(null);
     try {
       const data = await fetchBacktestRun(dataset);
-      setSelectedStrategy(null);
       setRun(data);
     } catch (e: unknown) {
       const message =
         e instanceof Error ? e.message : "Failed to run backtest";
       setError(message);
-      setSelectedStrategy(null);
       setRun(null);
     } finally {
       setLoading(false);
+      setSelectedStrategy(null);
     }
   }, [dataset]);
 
   const selected =
-    run !== null
-      ? findSelectedResult(run.results, selectedStrategy)
-      : undefined;
-  const tradesForChart = selected ? selected.trades : undefined;
+    run && findSelectedResult(run.results, selectedStrategy);
+  const tradesForChart = selected?.trades;
 
   return (
     <div className="min-h-dvh bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 px-6 py-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+      <header className="sticky top-0 z-20 border-b border-slate-800/90 bg-slate-950/75 px-4 py-3 backdrop-blur-md lg:px-6 xl:px-8 sm:py-4">
+        <div
+          className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${shellMaxClass}`}
+        >
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-50 sm:text-xl">
               Rust Trader
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Backtest overview — data from the API (
-              <code className="text-slate-400">POST /run</code>)
+            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+              Backtest overview —{" "}
+              <code className="text-slate-400">POST /run</code>
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2.5 shadow-sm sm:gap-4 sm:px-4 sm:py-3">
             <label
               htmlFor="dataset-select"
-              className="text-sm text-slate-400"
+              className="text-sm font-medium text-slate-400"
             >
               Dataset
             </label>
             <select
               id="dataset-select"
               value={dataset}
-              onChange={(e) => {
-                setDataset(e.target.value);
-              }}
+              onChange={(e) => setDataset(e.target.value as Dataset)}
               disabled={loading}
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/40 focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="BTCUSDT">BTCUSDT</option>
               <option value="ETHUSDT">ETHUSDT</option>
@@ -108,10 +100,12 @@ export function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-10 px-6 py-8">
+      <main
+        className={`space-y-8 px-4 py-6 sm:py-8 lg:px-6 lg:py-10 xl:px-8 ${shellMaxClass}`}
+      >
         {error !== null && (
           <div
-            className="rounded-lg border border-amber-900/60 bg-amber-950/40 px-4 py-3 text-sm text-amber-200"
+            className="rounded-xl border border-amber-900/50 bg-amber-950/35 px-5 py-4 text-sm text-amber-200 shadow-sm sm:px-6 sm:py-5"
             role="alert"
           >
             Could not load backtests: {error}
@@ -119,64 +113,197 @@ export function App() {
         )}
 
         {loading && (
-          <p className="text-sm text-slate-500">Running backtest…</p>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-5 py-5 shadow-sm sm:px-6 sm:py-6">
+            <p className="animate-pulse text-sm text-slate-400">
+              Running backtest…
+            </p>
+          </div>
         )}
 
         {!loading && run === null && error === null && (
-          <p className="text-sm text-slate-500">
-            Click <span className="text-slate-400">Run Backtest</span> to load
-            results.
-          </p>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-5 py-10 text-center shadow-sm sm:px-6 sm:py-12">
+            <p className="text-sm text-slate-500">
+              Click{" "}
+              <span className="font-medium text-slate-400">Run Backtest</span>{" "}
+              to load results.
+            </p>
+          </div>
         )}
 
         {run !== null && (
-          <>
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
-                Market Price
-              </h2>
-              <PriceChart market={run.market} trades={tradesForChart} />
-            </section>
-
-            <section className="space-y-3">
-              <div>
-                <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
-                  Strategy comparison
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Click a row to focus one strategy; click again to clear
-                  selection.
-                </p>
+          <div className="space-y-8">
+            <div className={`space-y-4 ${cardClass}`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <label
+                    htmlFor="strategy-select"
+                    className="shrink-0 text-sm font-medium text-slate-400"
+                  >
+                    Strategy
+                  </label>
+                  <select
+                    id="strategy-select"
+                    value={selectedStrategy ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelectedStrategy(v === "" ? null : v);
+                    }}
+                    className="w-full min-w-[12rem] rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 sm:max-w-xs"
+                  >
+                    <option value="">All</option>
+                    {run.results.map((r) => (
+                      <option key={r.name} value={r.name}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <StrategyTable
-                results={run.results}
-                selectedStrategy={selectedStrategy}
-                onSelectStrategy={handleToggleStrategy}
-              />
-            </section>
 
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
-                Equity curves
-              </h2>
-              <EquityChart
-                market={run.market}
-                results={run.results}
-                selectedStrategy={selectedStrategy}
-              />
-            </section>
+              <div
+                className="flex flex-wrap gap-3"
+                role="list"
+                aria-label="Strategy metrics"
+              >
+                {run.results.map((r) => {
+                  const isSelected = selectedStrategy === r.name;
+                  const s = r.summary;
+                  return (
+                    <button
+                      key={r.name}
+                      type="button"
+                      role="listitem"
+                      aria-pressed={isSelected}
+                      onClick={() => handleToggleStrategy(r.name)}
+                      className={`w-full min-w-[10rem] max-w-full flex-1 rounded-lg border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60 sm:max-w-[15rem] ${
+                        isSelected
+                          ? "border-sky-500 bg-slate-800/95 shadow-sm ring-1 ring-sky-500/35"
+                          : "border-slate-800 bg-slate-900/45 hover:border-slate-600 hover:bg-slate-900/75"
+                      }`}
+                    >
+                      <div
+                        className="truncate text-sm font-semibold tracking-tight text-slate-100"
+                        title={r.name}
+                      >
+                        {r.name}
+                      </div>
+                      <dl className="mt-2 space-y-1 text-xs">
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-slate-500">Return</dt>
+                          <dd className="tabular-nums text-slate-200">
+                            {s.return_pct.toFixed(2)}%
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-slate-500">Drawdown</dt>
+                          <dd className="tabular-nums text-slate-200">
+                            {s.drawdown_pct.toFixed(2)}%
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-slate-500">Sharpe</dt>
+                          <dd className="tabular-nums text-slate-200">
+                            {s.sharpe_ratio.toFixed(4)}
+                          </dd>
+                        </div>
+                      </dl>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
-                Drawdown
-              </h2>
-              <DrawdownChart
-                market={run.market}
-                results={run.results}
-                selectedStrategy={selectedStrategy}
-              />
-            </section>
-          </>
+            <div
+              className="inline-flex rounded-lg border border-slate-800 bg-slate-900/60 p-1 shadow-sm"
+              role="tablist"
+              aria-label="Dashboard view"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "charts"}
+                onClick={() => setView("charts")}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                  view === "charts"
+                    ? "bg-sky-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Charts
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "table"}
+                onClick={() => setView("table")}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                  view === "table"
+                    ? "bg-sky-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Table
+              </button>
+            </div>
+
+            {view === "charts" ? (
+              <div className="space-y-8">
+                <section className={`space-y-4 ${cardClass}`}>
+                  <h2 className="text-sm font-semibold tracking-tight text-slate-200">
+                    Market Price
+                  </h2>
+                  <div className="pt-2">
+                    <PriceChart market={run.market} trades={tradesForChart} />
+                  </div>
+                </section>
+
+                <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                  <section className={`space-y-4 ${cardClass}`}>
+                    <h2 className="text-sm font-semibold tracking-tight text-slate-200">
+                      Equity curves
+                    </h2>
+                    <div className="pt-2">
+                      <EquityChart
+                        market={run.market}
+                        results={run.results}
+                        selectedStrategy={selectedStrategy}
+                      />
+                    </div>
+                  </section>
+
+                  <section className={`space-y-4 ${cardClass}`}>
+                    <h2 className="text-sm font-semibold tracking-tight text-slate-200">
+                      Drawdown
+                    </h2>
+                    <div className="pt-2">
+                      <DrawdownChart
+                        market={run.market}
+                        results={run.results}
+                        selectedStrategy={selectedStrategy}
+                      />
+                    </div>
+                  </section>
+                </div>
+              </div>
+            ) : (
+              <section className={`space-y-4 ${cardClass}`}>
+                <div>
+                  <h2 className="text-sm font-semibold tracking-tight text-slate-200">
+                    Strategy comparison
+                  </h2>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Use the strategy control or a stats card to focus; click
+                    again to clear. Table rows work the same way.
+                  </p>
+                </div>
+                <StrategyTable
+                  results={run.results}
+                  selectedStrategy={selectedStrategy}
+                  onSelectStrategy={handleToggleStrategy}
+                />
+              </section>
+            )}
+          </div>
         )}
       </main>
     </div>

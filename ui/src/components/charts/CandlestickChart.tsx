@@ -5,6 +5,7 @@ import {
   createChart,
   createSeriesMarkers,
   CrosshairMode,
+  type IChartApi,
   type SeriesMarker,
   type Time,
   type UTCTimestamp,
@@ -20,6 +21,8 @@ type CandlestickChartProps = {
    * Per trade: `[id, timestamp, side, price, pnl, capital]` (backend `Vec<Vec<String>>`).
    */
   trades?: string[][];
+  /** Fired when the chart is created (passes `null` on teardown). Use for `timeScale()` controls. */
+  onChartReady?: (chart: IChartApi | null) => void;
 };
 
 type OhlcBar = {
@@ -91,6 +94,41 @@ function marketToBars(market: MarketSeries, interval: string): OhlcBar[] {
   return rows;
 }
 
+/** Preset windows use the last *N* daily bars (approx. calendar span for `1d` crypto data). */
+export type ChartRangePreset = "all" | "1m" | "3m" | "6m" | "1y";
+
+const PRESET_BAR_SPAN: Record<Exclude<ChartRangePreset, "all">, number> = {
+  "1m": 30,
+  "3m": 90,
+  "6m": 180,
+  "1y": 365,
+};
+
+/**
+ * Adjusts the visible range using the same `Time` values as the candle series
+ * (`BusinessDay` for daily intervals, `UTCTimestamp` otherwise).
+ */
+export function applyChartRangePreset(
+  chart: IChartApi,
+  market: MarketSeries,
+  interval: string,
+  preset: ChartRangePreset,
+): void {
+  const bars = marketToBars(market, interval);
+  if (bars.length === 0) return;
+
+  if (preset === "all") {
+    chart.timeScale().fitContent();
+    return;
+  }
+
+  const n = PRESET_BAR_SPAN[preset];
+  const fromIdx = Math.max(0, bars.length - n);
+  const from = bars[fromIdx]!.time;
+  const to = bars[bars.length - 1]!.time;
+  chart.timeScale().setVisibleRange({ from, to });
+}
+
 /** OHLC bar direction (close vs open) — shared by series styling and legend. */
 export const CANDLE_UP_COLOR = "#22c55e";
 export const CANDLE_DOWN_COLOR = "#ef4444";
@@ -144,6 +182,7 @@ export function CandlestickChart({
   market,
   interval = "1d",
   trades,
+  onChartReady,
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bars = useMemo(() => marketToBars(market, interval), [market, interval]);
@@ -213,6 +252,7 @@ export function CandlestickChart({
     series.setData(data);
     createSeriesMarkers(series, markers);
     chart.timeScale().fitContent();
+    onChartReady?.(chart);
 
     const ro = new ResizeObserver(() => {
       if (!containerRef.current) return;
@@ -225,9 +265,10 @@ export function CandlestickChart({
 
     return () => {
       ro.disconnect();
+      onChartReady?.(null);
       chart.remove();
     };
-  }, [bars, markers]);
+  }, [bars, markers, onChartReady]);
 
   if (market.length === 0) {
     return (

@@ -1,6 +1,12 @@
-import { useCallback, useId, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
+import type { IChartApi } from "lightweight-charts";
 import { AppHeader } from "./components/AppHeader.tsx";
-import { CandlestickChart } from "./components/charts/CandlestickChart.tsx";
+import {
+  applyChartRangePreset,
+  type ChartRangePreset,
+  CandlestickChart,
+} from "./components/charts/CandlestickChart.tsx";
+import { ChartRangeControls } from "./components/charts/ChartRangeControls.tsx";
 import { ChartSection } from "./components/charts/ChartSection.tsx";
 import { DrawdownChart } from "./components/charts/DrawdownChart.tsx";
 import { EquityChart } from "./components/charts/EquityChart.tsx";
@@ -35,6 +41,10 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [view, setView] = useState<DashboardView>("charts");
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [candleRange, setCandleRange] = useState<ChartRangePreset>("all");
+  const candleRangeRef = useRef<ChartRangePreset>(candleRange);
+  candleRangeRef.current = candleRange;
+  const candlestickChartRef = useRef<IChartApi | null>(null);
 
   const viewIds = useId();
   const chartsTabId = `${viewIds}-charts-tab`;
@@ -53,6 +63,7 @@ export function App() {
     setError(null);
     try {
       const data = await fetchBacktestRun(dataset, maParams, rsiParams);
+      setCandleRange("all");
       setRun(data);
     } catch (e: unknown) {
       const message =
@@ -67,6 +78,28 @@ export function App() {
 
   const bestStrategyName =
     run !== null ? bestStrategyNameByReturn(run.results) : null;
+
+  const handleCandlestickChartReady = useCallback((chart: IChartApi | null) => {
+    candlestickChartRef.current = chart;
+    if (chart !== null && run !== null) {
+      applyChartRangePreset(
+        chart,
+        run.market,
+        BACKTEST_INTERVAL,
+        candleRangeRef.current,
+      );
+    }
+  }, [run]);
+
+  const handleCandleRangeChange = useCallback(
+    (preset: ChartRangePreset) => {
+      setCandleRange(preset);
+      const chart = candlestickChartRef.current;
+      if (chart === null || run === null) return;
+      applyChartRangePreset(chart, run.market, BACKTEST_INTERVAL, preset);
+    },
+    [run],
+  );
 
   return (
     <div className="min-h-dvh bg-slate-950 text-slate-100">
@@ -152,6 +185,12 @@ export function App() {
         {run !== null && (
           <div className="space-y-8">
             <ChartSection title="Market Price" dataset={dataset}>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/60 pb-3">
+                <ChartRangeControls
+                  value={candleRange}
+                  onChange={handleCandleRangeChange}
+                />
+              </div>
               <CandlestickChart
                 market={run.market}
                 interval={BACKTEST_INTERVAL}
@@ -161,6 +200,7 @@ export function App() {
                     : run.results.find((r) => r.name === selectedStrategy)
                         ?.trades
                 }
+                onChartReady={handleCandlestickChartReady}
               />
             </ChartSection>
 

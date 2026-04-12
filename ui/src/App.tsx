@@ -94,7 +94,10 @@ export function App() {
               <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Market Price
               </h2>
-              <PriceChart market={run.market} />
+              <PriceChart
+                market={run.market}
+                trades={run.results[0]?.trades}
+              />
             </section>
 
             <section className="space-y-3">

@@ -16,9 +16,13 @@ import {
   xAxisTickStyle,
 } from "./chartXAxis.ts";
 
+/** Non-selected series when a strategy is focused (table + charts). */
+const DIM_OPACITY = 0.3;
+
 type EquityChartProps = {
   market: MarketSeries;
   results: BacktestResult[];
+  selectedStrategy?: string | null;
 };
 
 /** Fixed order: distinct on dark backgrounds, consistent across Line + Legend. */
@@ -82,7 +86,11 @@ function mergeEquityCurves(
   return rows;
 }
 
-export function EquityChart({ market, results }: EquityChartProps) {
+export function EquityChart({
+  market,
+  results,
+  selectedStrategy = null,
+}: EquityChartProps) {
   const withCurves = results.filter((r) => r.equity_curve.length > 0);
   if (withCurves.length === 0 || market.length === 0) {
     return (
@@ -97,6 +105,9 @@ export function EquityChart({ market, results }: EquityChartProps) {
   ).name;
   const pointCount = chartData.length;
 
+  const hasSelection =
+    selectedStrategy != null && selectedStrategy !== "";
+
   let activePaletteIndex = 0;
   const equityLines = strategyNames.map((name) => {
     const isBenchmark = name === BENCHMARK_STRATEGY_NAME;
@@ -104,11 +115,25 @@ export function EquityChart({ market, results }: EquityChartProps) {
       ? BENCHMARK_STROKE
       : SERIES_COLORS[activePaletteIndex++ % SERIES_COLORS.length];
     const isTopCapital = !isBenchmark && name === topCapitalName;
-    const strokeWidth = isBenchmark
-      ? BENCHMARK_STROKE_WIDTH
-      : isTopCapital
+    const isHighlighted = hasSelection && name === selectedStrategy;
+
+    let strokeOpacity = 1;
+    let strokeWidth: number;
+    if (hasSelection) {
+      strokeOpacity = isHighlighted ? 1 : DIM_OPACITY;
+      strokeWidth = isHighlighted
         ? LINE_STROKE_WIDTH_HIGHLIGHT
-        : LINE_STROKE_WIDTH;
+        : isBenchmark
+          ? BENCHMARK_STROKE_WIDTH
+          : LINE_STROKE_WIDTH;
+    } else {
+      strokeWidth = isBenchmark
+        ? BENCHMARK_STROKE_WIDTH
+        : isTopCapital
+          ? LINE_STROKE_WIDTH_HIGHLIGHT
+          : LINE_STROKE_WIDTH;
+    }
+
     return (
       <Line
         key={name}
@@ -116,6 +141,7 @@ export function EquityChart({ market, results }: EquityChartProps) {
         dataKey={name}
         name={isBenchmark ? `${name} (benchmark)` : name}
         stroke={stroke}
+        strokeOpacity={strokeOpacity}
         strokeWidth={strokeWidth}
         strokeDasharray={
           isBenchmark ? BENCHMARK_STROKE_DASHARRAY : undefined

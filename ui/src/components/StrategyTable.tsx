@@ -2,6 +2,8 @@ import type { BacktestResult } from "../types";
 
 type StrategyTableProps = {
   results: BacktestResult[];
+  selectedStrategy: string | null;
+  onSelectStrategy: (strategyName: string) => void;
 };
 
 function fmtPct(n: number, digits = 2): string {
@@ -12,7 +14,11 @@ function fmtNum(n: number, digits = 2): string {
   return n.toFixed(digits);
 }
 
-export function StrategyTable({ results }: StrategyTableProps) {
+export function StrategyTable({
+  results,
+  selectedStrategy,
+  onSelectStrategy,
+}: StrategyTableProps) {
   if (results.length === 0) {
     return (
       <p className="text-sm text-slate-500">No strategies to show.</p>
@@ -37,8 +43,28 @@ export function StrategyTable({ results }: StrategyTableProps) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-800">
-          {results.map((r) => (
-            <tr key={r.name} className="hover:bg-slate-900/50">
+          {results.map((r) => {
+            const isSelected = selectedStrategy === r.name;
+            return (
+            <tr
+              key={r.name}
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                onSelectStrategy(r.name);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelectStrategy(r.name);
+                }
+              }}
+              className={`cursor-pointer outline-none transition-colors hover:bg-slate-900/50 focus-visible:ring-2 focus-visible:ring-sky-500/60 ${
+                isSelected
+                  ? "bg-slate-800/80 ring-1 ring-inset ring-sky-500/40"
+                  : ""
+              }`}
+            >
               <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-100">
                 {r.name}
               </td>
@@ -70,7 +96,8 @@ export function StrategyTable({ results }: StrategyTableProps) {
                 {r.summary.max_drawdown_duration}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

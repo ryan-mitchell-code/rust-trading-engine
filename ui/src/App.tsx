@@ -3,7 +3,15 @@ import { DrawdownChart } from "./components/DrawdownChart.tsx";
 import { EquityChart } from "./components/EquityChart.tsx";
 import { PriceChart } from "./components/PriceChart.tsx";
 import { StrategyTable } from "./components/StrategyTable.tsx";
-import type { BacktestRun } from "./types.ts";
+import type { BacktestResult, BacktestRun } from "./types.ts";
+
+function findSelectedResult(
+  results: BacktestResult[],
+  selectedStrategy: string | null,
+): BacktestResult | undefined {
+  if (selectedStrategy === null) return undefined;
+  return results.find((r) => r.name === selectedStrategy);
+}
 
 const RUN_BODY = {
   dataset: "BTCUSDT",
@@ -26,22 +34,37 @@ export function App() {
   const [run, setRun] = useState<BacktestRun | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+
+  const handleToggleStrategy = useCallback((strategyName: string) => {
+    setSelectedStrategy((prev) =>
+      prev === strategyName ? null : strategyName,
+    );
+  }, []);
 
   const handleRunBacktest = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await fetchBacktestRun();
+      setSelectedStrategy(null);
       setRun(data);
     } catch (e: unknown) {
       const message =
         e instanceof Error ? e.message : "Failed to run backtest";
       setError(message);
+      setSelectedStrategy(null);
       setRun(null);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const selected =
+    run !== null
+      ? findSelectedResult(run.results, selectedStrategy)
+      : undefined;
+  const tradesForChart = selected ? selected.trades : undefined;
 
   return (
     <div className="min-h-dvh bg-slate-950 text-slate-100">
@@ -94,31 +117,46 @@ export function App() {
               <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Market Price
               </h2>
-              <PriceChart
-                market={run.market}
-                trades={run.results[0]?.trades}
-              />
+              <PriceChart market={run.market} trades={tradesForChart} />
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
-                Strategy comparison
-              </h2>
-              <StrategyTable results={run.results} />
+              <div>
+                <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+                  Strategy comparison
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Click a row to focus one strategy; click again to clear
+                  selection.
+                </p>
+              </div>
+              <StrategyTable
+                results={run.results}
+                selectedStrategy={selectedStrategy}
+                onSelectStrategy={handleToggleStrategy}
+              />
             </section>
 
             <section className="space-y-3">
               <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Equity curves
               </h2>
-              <EquityChart market={run.market} results={run.results} />
+              <EquityChart
+                market={run.market}
+                results={run.results}
+                selectedStrategy={selectedStrategy}
+              />
             </section>
 
             <section className="space-y-3">
               <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Drawdown
               </h2>
-              <DrawdownChart market={run.market} results={run.results} />
+              <DrawdownChart
+                market={run.market}
+                results={run.results}
+                selectedStrategy={selectedStrategy}
+              />
             </section>
           </>
         )}

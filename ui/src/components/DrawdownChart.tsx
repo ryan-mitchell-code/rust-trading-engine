@@ -29,9 +29,13 @@ import {
 /** Non-benchmark series: slightly transparent so benchmark reads clearly. */
 const ACTIVE_STRATEGY_STROKE_OPACITY = 0.7;
 
+/** Non-selected series when a strategy is focused. */
+const DIM_OPACITY = 0.3;
+
 type DrawdownChartProps = {
   market: MarketSeries;
   results: BacktestResult[];
+  selectedStrategy?: string | null;
 };
 
 /** Backend drawdown ratios → percentage strings (2 decimals). */
@@ -89,7 +93,11 @@ function mergeDrawdownCurves(
   return rows;
 }
 
-export function DrawdownChart({ market, results }: DrawdownChartProps) {
+export function DrawdownChart({
+  market,
+  results,
+  selectedStrategy = null,
+}: DrawdownChartProps) {
   const withCurves = results.filter((r) => r.drawdown_curve.length > 0);
   if (withCurves.length === 0 || market.length === 0) {
     return (
@@ -107,6 +115,9 @@ export function DrawdownChart({ market, results }: DrawdownChartProps) {
   ).name;
   const pointCount = chartData.length;
 
+  const hasSelection =
+    selectedStrategy != null && selectedStrategy !== "";
+
   let activePaletteIndex = 0;
   const drawdownLines = strategyNames.map((name) => {
     const isBenchmark = name === BENCHMARK_STRATEGY_NAME;
@@ -114,11 +125,26 @@ export function DrawdownChart({ market, results }: DrawdownChartProps) {
       ? BENCHMARK_STROKE
       : SERIES_COLORS[activePaletteIndex++ % SERIES_COLORS.length];
     const isTopCapital = !isBenchmark && name === topCapitalName;
-    const strokeWidth = isBenchmark
-      ? BENCHMARK_STROKE_WIDTH
-      : isTopCapital
+    const isHighlighted = hasSelection && name === selectedStrategy;
+
+    let strokeOpacity: number;
+    let strokeWidth: number;
+    if (hasSelection) {
+      strokeOpacity = isHighlighted ? 1 : DIM_OPACITY;
+      strokeWidth = isHighlighted
         ? LINE_STROKE_WIDTH_HIGHLIGHT
-        : LINE_STROKE_WIDTH;
+        : isBenchmark
+          ? BENCHMARK_STROKE_WIDTH
+          : LINE_STROKE_WIDTH;
+    } else {
+      strokeOpacity = isBenchmark ? 1 : ACTIVE_STRATEGY_STROKE_OPACITY;
+      strokeWidth = isBenchmark
+        ? BENCHMARK_STROKE_WIDTH
+        : isTopCapital
+          ? LINE_STROKE_WIDTH_HIGHLIGHT
+          : LINE_STROKE_WIDTH;
+    }
+
     return (
       <Line
         key={name}
@@ -126,7 +152,7 @@ export function DrawdownChart({ market, results }: DrawdownChartProps) {
         dataKey={name}
         name={isBenchmark ? `${name} (benchmark)` : name}
         stroke={stroke}
-        strokeOpacity={isBenchmark ? 1 : ACTIVE_STRATEGY_STROKE_OPACITY}
+        strokeOpacity={strokeOpacity}
         strokeWidth={strokeWidth}
         strokeDasharray={
           isBenchmark ? BENCHMARK_STROKE_DASHARRAY : undefined

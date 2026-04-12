@@ -9,7 +9,7 @@ Build an interactive system to:
 The system should prioritize:
 
 * clarity of results
-* understanding of trade-offs (return vs risk)
+* understanding of risk vs return trade-offs
 * fast iteration and experimentation
 
 ---
@@ -18,29 +18,31 @@ The system should prioritize:
 
 ### Backend (Rust)
 
-* Backtesting engine with:
+* Backtesting engine:
 
   * Position management
-  * Trade execution (BUY → SELL lifecycle)
+  * Trade lifecycle (BUY → SELL)
+
 * Strategy abstraction via `Strategy` trait
+
 * Implemented strategies:
 
   * Moving Average crossover
   * Random
   * Buy & Hold (benchmark)
+
 * Metrics:
 
   * Return %
-  * Sharpe ratio (per-period)
+  * Sharpe ratio
   * Max drawdown
   * Drawdown duration
   * Win rate, avg PnL
-* Scoring system:
 
-  * Normalized components (return, drawdown, sharpe)
 * Data:
 
   * Binance OHLC integration
+
 * Output:
 
   * `BacktestRun { market, results }`
@@ -49,16 +51,24 @@ The system should prioritize:
 
 ### Frontend (React + TypeScript)
 
-* Strategy comparison table
-* Charts (Recharts):
+* Charts:
 
   * Market price
-  * Equity curves (multi-strategy)
+  * Equity curves
   * Drawdown curves
+
+* Interaction:
+
+  * Run backtest via API
+  * Dataset selection (BTC, ETH)
+  * Strategy selection (dropdown + cards)
+  * View toggle (charts / table)
+
 * Visual features:
 
+  * Strategy summary cards
   * Best strategy highlighting
-  * Buy & Hold as benchmark
+  * Trade markers (BUY / SELL)
 
 ---
 
@@ -66,8 +76,11 @@ The system should prioritize:
 
 ### 3.1 Data
 
-* Load historical market data (OHLC)
-* Support multiple datasets (future)
+* Load historical OHLC data
+* Support multiple datasets
+* (Future) support multiple timeframes
+
+---
 
 ### 3.2 Simulation
 
@@ -77,13 +90,18 @@ The system should prioritize:
   * capital
   * positions
   * trades
-  * equity over time
+  * equity curve
+
+---
 
 ### 3.3 Evaluation
 
 * Compute performance metrics
-* Compare strategies against benchmark (Buy & Hold)
-* Rank strategies via scoring system
+* Compare strategies vs benchmark (Buy & Hold)
+* Rank strategies using scoring system
+* (Future) include relative performance metrics in backend
+
+---
 
 ### 3.4 Visualization
 
@@ -92,22 +110,31 @@ The system should prioritize:
   * market context (price chart)
   * performance (equity)
   * risk (drawdown)
-* Enable visual comparison across strategies
 
-### 3.5 Execution (Planned)
+* Enable:
 
-* Trigger backtests dynamically from UI
-* Pass configuration to backend
-* Return results in real-time
+  * multi-strategy comparison
+  * strategy highlighting
+  * trade inspection
+
+---
+
+### 3.5 Interaction
+
+* Trigger backtests from UI
+* Select dataset
+* Select and highlight strategies
+* View charts or table
+* Inspect trades visually
 
 ---
 
 ## 4. Architecture Principles
 
 * Backend is the **source of truth**
-* UI is **read-only visualization + control layer**
-* No metric computation in the frontend
-* Keep data contracts simple and explicit
+* UI is primarily **visualization + interaction layer**
+* Derived metrics may temporarily exist in UI but should migrate to backend
+* Keep API contracts explicit and simple
 * Prefer clarity over abstraction
 
 ---
@@ -116,57 +143,40 @@ The system should prioritize:
 
 ---
 
-### Phase 1 — Visualization (Complete)
+### Phase 1 — Visualization ✅ Complete
 
 Goal:
 
 > Make results understandable
 
-#### Features
-
 * [x] Market price chart
-* [x] Equity chart (multi-strategy)
+* [x] Equity chart
 * [x] Drawdown chart
 * [x] Strategy comparison table
 * [x] Buy & Hold benchmark
-* [x] Best strategy highlighting
+* [x] Trade markers
 
 ---
 
-### Phase 2 — Interaction (Next)
+### Phase 2 — Interaction 🚧 In Progress
 
 Goal:
 
-> Make the UI exploratory and interactive
+> Make system exploratory
 
-#### Features
+#### Completed
 
-##### 2.1 Run Backtest from UI
+* [x] Run backtest from UI (`POST /run`)
+* [x] Dataset selection
+* [x] Strategy selection & highlighting
+* [x] View toggle (charts / table)
+* [x] Strategy summary cards
 
-* Trigger simulation via API
-* Return `BacktestRun`
+#### Remaining
 
-##### 2.2 Dataset Selection
-
-* Select market (e.g. BTC, ETH)
-* Select timeframe / interval
-
-##### 2.3 Strategy Selection
-
-* Enable/disable strategies before execution
-
-##### 2.4 Parameter Controls
-
-* Adjust strategy parameters (e.g. MA windows)
-
-##### 2.5 Trade Markers (High Priority)
-
-* Display BUY/SELL points on price chart
-
-##### 2.6 Strategy Highlight & Toggle
-
-* Click to focus on strategy
-* Show/hide strategies in charts
+* [ ] Strategy enable/disable (API-driven)
+* [ ] Parameter controls (e.g. MA windows)
+* [ ] Timeframe selection (1d, 4h, etc.)
 
 ---
 
@@ -174,14 +184,12 @@ Goal:
 
 Goal:
 
-> Improve and evaluate strategies more deeply
+> Enable experimentation
 
-#### Features
-
-* Parameter sweeps / multiple runs
-* Relative performance vs benchmark
-* Strategy comparison views
-* Experiment with scoring models
+* [ ] Parameter sweeps
+* [ ] Compare multiple runs
+* [ ] Relative performance vs benchmark (backend)
+* [ ] Alternative scoring models
 
 ---
 
@@ -189,28 +197,26 @@ Goal:
 
 Goal:
 
-> Combine multiple strategies
+> Combine strategies
 
-#### Features
-
-* Allocate capital across strategies
-* Portfolio-level metrics
-* Compare portfolio vs individual strategies
+* [ ] Allocate capital across strategies
+* [ ] Portfolio metrics
+* [ ] Compare portfolio vs individual strategies
 
 ---
 
-### Phase 5 — Advanced (Optional)
+### Phase 5 — Advanced
 
-* Multi-dataset comparison
-* Strategy evolution / optimization
-* Advanced visualizations:
+* [ ] Multi-dataset comparison
+* [ ] Strategy optimization
+* [ ] Advanced visualizations:
 
-  * risk vs return scatter plots
-  * drawdown duration analysis
+  * risk vs return scatter
+  * drawdown duration charts
 
 ---
 
-## 6. API Design (Planned)
+## 6. API Design
 
 ### Endpoint
 
@@ -218,7 +224,18 @@ Goal:
 
 ---
 
-### Request
+### Request (Current)
+
+```json
+{
+  "dataset": "BTCUSDT",
+  "interval": "1d"
+}
+```
+
+---
+
+### Request (Future)
 
 ```json
 {
@@ -241,79 +258,45 @@ BacktestRun
 
 ---
 
-### Design Notes
+### Notes
 
-* UI defines *what to run*
-* Backend defines *how it runs*
-* Keep API minimal initially
-* Extend incrementally
+* API is intentionally minimal
+* Will expand to support:
 
----
-
-## 7. Immediate Tasks
-
-### Task 1 — Trade Markers
-
-* Extract trades from results
-* Map to timestamps
-* Render on price chart
+  * strategy configuration
+  * parameter inputs
 
 ---
 
-### Task 2 — Strategy Toggle
+## 7. Immediate Next Steps
 
-* Add selection state in UI
-* Filter chart rendering
-
----
-
-### Task 3 — Strategy Highlight
-
-* Click table row → highlight chart line
-
----
-
-### Task 4 — API Integration (Backend)
-
-* Add `/run` endpoint
-* Return `BacktestRun`
-* Replace static JSON in UI
+1. Strategy configuration via API
+2. Parameter controls in UI
+3. Timeframe selection
+4. Move derived metrics (e.g. vs Buy & Hold) to backend
 
 ---
 
 ## 8. Key Insights
 
-* A strategy must be evaluated relative to a benchmark
-* Buy & Hold is a proxy for market performance
-* Equity shows outcome; drawdown shows risk
-* Visualization must answer specific questions, not just display data
+* Performance must be evaluated relative to a benchmark
+* Drawdown is as important as return
+* Visualization should answer questions, not just display data
+* Simplicity enables faster iteration
 
 ---
 
-## 9. Future Questions
+## 9. Success Criteria
 
-* How do strategies behave across different markets?
-* What defines a “good” strategy under different conditions?
-* How should risk vs return be visualized effectively?
-* Can strategies be combined for better outcomes?
+A user can:
 
----
+* select dataset
+* configure strategies
+* run backtest
+* understand results visually
 
-## 10. Success Criteria
+The system clearly communicates:
 
-The system is successful when:
-
-* A user can:
-
-  * select a dataset
-  * configure strategies
-  * run a backtest
-  * understand results visually
-
-* The system clearly communicates:
-
-  * performance
-  * risk
-  * trade-offs between strategies
-
----
+* performance
+* risk
+* trade-offs

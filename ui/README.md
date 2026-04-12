@@ -1,6 +1,6 @@
 # rust-trader UI
 
-React + Vite front-end for the backtest dashboard. The normal flow calls **`POST /run`** on the Rust API and renders the returned **`BacktestRun`** JSON. See [`docs/ui-rules.md`](../docs/ui-rules.md).
+React + Vite front-end for the backtest dashboard. The normal flow calls **`POST /run`** on the Rust API and renders the returned **`BacktestRun`** JSON. See [`docs/reference/ui-rules.md`](../docs/reference/ui-rules.md).
 
 ## Prerequisites
 

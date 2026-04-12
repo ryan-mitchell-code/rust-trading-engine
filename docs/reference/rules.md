@@ -139,6 +139,6 @@ Example:
 
 When introducing new Rust concepts:
 
-- Suggest updates to /docs/rust-learning.md
+- Suggest updates to `docs/learning/rust-learning.md`
 - Do NOT automatically overwrite content
 - Keep explanations simple and tied to actual usage

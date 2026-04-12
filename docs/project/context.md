@@ -86,12 +86,15 @@ This project documents both implementation and learning.
 
 ### Files
 
-- `/docs/rust-learning.md` → Rust concepts and learnings
-- `/docs/dev-log.md` → Progress, decisions, mistakes
-- `/docs/glossary.md` → Trading concepts
-- `/docs/ui-rules.md` → UI conventions (read-only, types mirror Rust)
-- `README.md` → High-level overview
-- `ui/README.md` → How to run the front-end
+See [Documentation index](../README.md) for the full layout. Commonly used:
+
+- [`learning/rust-learning.md`](../learning/rust-learning.md) → Rust concepts and learnings
+- [`learning/dev-log.md`](../learning/dev-log.md) → Progress, decisions, mistakes
+- [`reference/glossary.md`](../reference/glossary.md) → Trading concepts
+- [`reference/ui-rules.md`](../reference/ui-rules.md) → UI conventions (read-only, types mirror Rust)
+- [`README.md`](../README.md) (this folder) → Map of all docs
+- [`README.md`](../../README.md) (repo root) → High-level overview
+- [`ui/README.md`](../../ui/README.md) → How to run the front-end
 
 ---
 

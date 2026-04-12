@@ -105,6 +105,12 @@ export function App() {
               <CandlestickChart
                 market={run.market}
                 interval={BACKTEST_INTERVAL}
+                trades={
+                  selectedStrategy === null
+                    ? undefined
+                    : run.results.find((r) => r.name === selectedStrategy)
+                        ?.trades
+                }
               />
             </ChartSection>
 

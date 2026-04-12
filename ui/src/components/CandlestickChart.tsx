@@ -3,7 +3,9 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  createSeriesMarkers,
   CrosshairMode,
+  type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -14,6 +16,10 @@ type CandlestickChartProps = {
   market: MarketSeries;
   /** e.g. `1d` — daily bars use business-day time (recommended by lightweight-charts). */
   interval?: string;
+  /**
+   * Per trade: `[id, timestamp, side, price, pnl, capital]` (backend `Vec<Vec<String>>`).
+   */
+  trades?: string[][];
 };
 
 type OhlcBar = {
@@ -85,15 +91,66 @@ function marketToBars(market: MarketSeries, interval: string): OhlcBar[] {
   return rows;
 }
 
+/** OHLC bar direction (close vs open) — shared by series styling and legend. */
+export const CANDLE_UP_COLOR = "#22c55e";
+export const CANDLE_DOWN_COLOR = "#ef4444";
+
+/**
+ * Executed trades — hues chosen to avoid clashing with candle green/red.
+ */
+export const TRADE_BUY_MARKER_COLOR = "#38bdf8";
+export const TRADE_SELL_MARKER_COLOR = "#f59e0b";
+
+/**
+ * Map backend trade rows to lightweight-charts series markers, using the same time
+ * scale as {@link marketToBars} (`toChartTime` + `interval`).
+ */
+export function buildMarkers(
+  trades: string[][],
+  interval: string,
+): SeriesMarker<Time>[] {
+  const out: SeriesMarker<Time>[] = [];
+  for (const row of trades) {
+    if (row.length < 3) continue;
+    const ts = row[1];
+    const sideRaw = String(row[2]).trim().toUpperCase();
+    const d = parseChartTimestamp(typeof ts === "string" ? ts : String(ts));
+    if (!d) continue;
+    const time = toChartTime(d, interval);
+    if (sideRaw === "BUY") {
+      out.push({
+        time,
+        position: "belowBar",
+        shape: "arrowUp",
+        color: TRADE_BUY_MARKER_COLOR,
+      });
+    } else if (sideRaw === "SELL") {
+      out.push({
+        time,
+        position: "aboveBar",
+        shape: "arrowDown",
+        color: TRADE_SELL_MARKER_COLOR,
+      });
+    }
+  }
+  out.sort((a, b) => timeSortKey(a.time) - timeSortKey(b.time));
+  return out;
+}
+
 const CHART_MIN_WIDTH = 280;
 const CHART_MIN_HEIGHT = 320;
 
 export function CandlestickChart({
   market,
   interval = "1d",
+  trades,
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bars = useMemo(() => marketToBars(market, interval), [market, interval]);
+  const markers = useMemo(
+    () => buildMarkers(trades ?? [], interval),
+    [trades, interval],
+  );
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -142,11 +199,11 @@ export function CandlestickChart({
     });
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e",
-      downColor: "#ef4444",
+      upColor: CANDLE_UP_COLOR,
+      downColor: CANDLE_DOWN_COLOR,
       borderVisible: false,
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
+      wickUpColor: CANDLE_UP_COLOR,
+      wickDownColor: CANDLE_DOWN_COLOR,
       priceFormat: {
         type: "price",
         minMove: 0.01,
@@ -154,6 +211,7 @@ export function CandlestickChart({
       },
     });
     series.setData(data);
+    createSeriesMarkers(series, markers);
     chart.timeScale().fitContent();
 
     const ro = new ResizeObserver(() => {
@@ -169,7 +227,7 @@ export function CandlestickChart({
       ro.disconnect();
       chart.remove();
     };
-  }, [bars]);
+  }, [bars, markers]);
 
   if (market.length === 0) {
     return (
@@ -186,9 +244,70 @@ export function CandlestickChart({
   }
 
   return (
-    <div
-      className="h-80 w-full min-h-[320px] min-w-0 rounded-lg border border-slate-800 bg-slate-900/40 p-1"
-      ref={containerRef}
-    />
+    <div className="space-y-2">
+      <div
+        className="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-slate-800/80 pb-2 text-[11px] leading-tight text-slate-500 sm:text-xs"
+        role="group"
+        aria-label="Chart legend"
+      >
+        <span className="font-medium text-slate-400">Legend</span>
+        <span className="text-slate-600" aria-hidden>
+          |
+        </span>
+        <span className="font-medium text-slate-500">Candles (price)</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="h-2.5 w-3 shrink-0 rounded-sm"
+            style={{ backgroundColor: CANDLE_UP_COLOR }}
+            aria-hidden
+          />
+          <span className="text-slate-400">Up bar (close ≥ open)</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="h-2.5 w-3 shrink-0 rounded-sm"
+            style={{ backgroundColor: CANDLE_DOWN_COLOR }}
+            aria-hidden
+          />
+          <span className="text-slate-400">Down bar (close &lt; open)</span>
+        </span>
+        <span className="text-slate-600" aria-hidden>
+          |
+        </span>
+        <span className="font-medium text-slate-500">Trades (strategy)</span>
+        <span className="inline-flex items-center gap-1">
+          <span
+            className="text-sm leading-none"
+            style={{ color: TRADE_BUY_MARKER_COLOR }}
+            aria-hidden
+          >
+            ▲
+          </span>
+          <span className="text-slate-400">Buy</span>
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span
+            className="text-sm leading-none"
+            style={{ color: TRADE_SELL_MARKER_COLOR }}
+            aria-hidden
+          >
+            ▼
+          </span>
+          <span className="text-slate-400">Sell</span>
+        </span>
+        {trades === undefined && (
+          <span className="text-slate-600 italic">
+            Select a strategy to show trade markers.
+          </span>
+        )}
+        {trades !== undefined && markers.length === 0 && (
+          <span className="text-slate-600 italic">No trades in this run.</span>
+        )}
+      </div>
+      <div
+        className="h-80 w-full min-h-[320px] min-w-0 rounded-lg border border-slate-800 bg-slate-900/40 p-1"
+        ref={containerRef}
+      />
+    </div>
   );
 }

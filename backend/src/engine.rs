@@ -98,17 +98,17 @@ fn drawdown_curve_from_equity(equity_curve: &[f64]) -> Vec<f64> {
     out
 }
 
-/// Bar timestamps and close prices for the run (one row per candle).
-pub fn market_series(data: &[Candle]) -> Vec<(String, f64)> {
+/// Bar timestamps and OHLC for the run (one row per candle).
+pub fn market_series(data: &[Candle]) -> Vec<(String, f64, f64, f64, f64)> {
     data.iter()
-        .map(|c| (c.timestamp.clone(), c.close))
+        .map(|c| (c.timestamp.clone(), c.open, c.high, c.low, c.close))
         .collect()
 }
 
 /// Full export: shared market context plus per-strategy results (no duplicated OHLC per strategy).
 #[derive(Serialize)]
 pub struct BacktestRun {
-    pub market: Vec<(String, f64)>,
+    pub market: Vec<(String, f64, f64, f64, f64)>,
     pub results: Vec<BacktestResult>,
 }
 

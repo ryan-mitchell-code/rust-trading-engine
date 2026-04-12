@@ -53,7 +53,7 @@ The system should prioritize:
 
 * Charts:
 
-  * Market price
+  * Market OHLC (candlestick)
   * Equity curves
   * Drawdown curves
 
@@ -68,7 +68,7 @@ The system should prioritize:
 
   * Strategy summary cards
   * Best strategy highlighting
-  * Trade markers (BUY / SELL)
+  * Trade markers on the market chart *(optional / follow-up — not on candlestick yet)*
 
 ---
 
@@ -107,7 +107,7 @@ The system should prioritize:
 
 * Provide:
 
-  * market context (price chart)
+  * market context (OHLC candlestick chart)
   * performance (equity)
   * risk (drawdown)
 
@@ -252,9 +252,20 @@ Goal:
 
 ### Response
 
+`BacktestRun` (JSON). Shape matches Rust `engine::BacktestRun` / `serde` export.
+
+**`market`** — shared series, one row per bar (aligned with strategy curves):
+
 ```json
-BacktestRun
+[
+  ["2024-01-01T00:00:00+00:00", 42000.0, 43000.0, 41500.0, 42500.0],
+  ...
+]
 ```
+
+Each row is **`[timestamp, open, high, low, close]`** (numbers are `f64`).
+
+**`results`** — array of per-strategy objects: `name`, `summary`, `equity_curve`, `drawdown_curve`, `trades`, etc.
 
 ---
 

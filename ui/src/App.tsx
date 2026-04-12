@@ -8,15 +8,16 @@ import {
 import { DrawdownChart } from "./components/DrawdownChart.tsx";
 import { EquityChart } from "./components/EquityChart.tsx";
 import { HelpHint } from "./components/HelpHint.tsx";
-import { PriceChart } from "./components/PriceChart.tsx";
+import { CandlestickChart } from "./components/CandlestickChart.tsx";
 import { StrategyMetricCards } from "./components/StrategyMetricCards.tsx";
 import { StrategyTable } from "./components/StrategyTable.tsx";
 import { cardClass, shellMaxClass } from "./constants/layout.ts";
+import { bestStrategyNameByReturn } from "./lib/backtestMetrics.ts";
 import {
-  bestStrategyNameByReturn,
-  findSelectedResult,
-} from "./lib/backtestMetrics.ts";
-import { fetchBacktestRun, type Dataset } from "./services/api.ts";
+  BACKTEST_INTERVAL,
+  fetchBacktestRun,
+  type Dataset,
+} from "./services/api.ts";
 import type { BacktestRun } from "./types.ts";
 
 export function App() {
@@ -55,10 +56,6 @@ export function App() {
       setSelectedStrategy(null);
     }
   }, [dataset]);
-
-  const selected =
-    run && findSelectedResult(run.results, selectedStrategy);
-  const tradesForChart = selected?.trades;
 
   const bestStrategyName =
     run !== null ? bestStrategyNameByReturn(run.results) : null;
@@ -129,7 +126,10 @@ export function App() {
               {view === "charts" && (
                 <div className="space-y-8">
                   <ChartSection title="Market Price" dataset={dataset}>
-                    <PriceChart market={run.market} trades={tradesForChart} />
+                    <CandlestickChart
+                      market={run.market}
+                      interval={BACKTEST_INTERVAL}
+                    />
                   </ChartSection>
 
                   <div className="grid grid-cols-1 gap-8 md:grid-cols-2">

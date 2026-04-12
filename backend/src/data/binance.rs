@@ -35,16 +35,34 @@ pub async fn fetch_klines(symbol: &str, interval: &str, limit: u16) -> Result<Ve
             .first()
             .and_then(|v| v.as_i64().or_else(|| v.as_u64().map(|u| u as i64)))
             .ok_or_else(|| "open time in kline".to_string())?;
+        let open = row
+            .get(1)
+            .ok_or_else(|| "open field in kline".to_string())
+            .and_then(json_f64)?;
+        let high = row
+            .get(2)
+            .ok_or_else(|| "high field in kline".to_string())
+            .and_then(json_f64)?;
+        let low = row
+            .get(3)
+            .ok_or_else(|| "low field in kline".to_string())
+            .and_then(json_f64)?;
         let close = row
             .get(4)
             .ok_or_else(|| "close field in kline".to_string())
-            .and_then(|v| json_f64(v))?;
+            .and_then(json_f64)?;
         let timestamp = Utc
             .timestamp_millis_opt(open_ms)
             .single()
             .map(|dt| dt.to_rfc3339_opts(SecondsFormat::Secs, true))
             .unwrap_or_else(|| format!("{open_ms}"));
-        candles.push(Candle { timestamp, close });
+        candles.push(Candle {
+            timestamp,
+            open,
+            high,
+            low,
+            close,
+        });
     }
     Ok(candles)
 }

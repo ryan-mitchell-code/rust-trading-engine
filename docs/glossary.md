@@ -14,7 +14,7 @@ Typical candle fields:
 - Close: price at end of period
 - Volume: total traded amount
 
-In **this codebase**, the Rust `Candle` type stores **`timestamp`** and **`close`** only (enough for mark-to-market equity and bar alignment). Loaders may still consume full OHLCV from CSV or APIs.
+In **this codebase**, the Rust `Candle` type stores **`timestamp`**, **`open`**, **`high`**, **`low`**, and **`close`** (OHLC). The engine still marks equity to **`close`** each bar; the UI uses full OHLC for the market candlestick chart. CSV/API loaders fill all fields where available.
 
 ## 📊 OHLCV
 
@@ -212,7 +212,7 @@ Same average return, but **A** is preferable on a risk-adjusted basis because vo
 
 The JSON export (`outputs/results.json`) is a single object with:
 
-- **`market`**: one series of **`(timestamp, close)`** pairs per bar (from `engine::market_series`), shared by all strategies.
+- **`market`**: one series per bar, each row **`[timestamp, open, high, low, close]`** (from `engine::market_series`), shared by all strategies.
 - **`results`**: array of per-strategy rows (name, summary, **equity curve**, **drawdown curve**, trades).
 
 This avoids duplicating market data for every strategy row and keeps the UI aligned on one x-axis.

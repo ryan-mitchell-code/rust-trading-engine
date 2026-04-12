@@ -9,6 +9,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info};
 
 use crate::arena;
+use crate::config::RunConfig;
 use crate::data;
 
 const DEFAULT_LIMIT: u16 = 1000;
@@ -85,10 +86,12 @@ async fn run_handler(Json(req): Json<RunRequest>) -> impl IntoResponse {
             .into_response();
     }
 
+    let config = RunConfig::with_ma(ma_short, ma_long);
+
     match data::load_from_binance(&req.dataset, &req.interval, DEFAULT_LIMIT).await {
         Ok(candles) => {
             info!(bars = candles.len(), "running backtest");
-            let export = arena::run_arena(&candles, false, ma_short, ma_long);
+            let export = arena::run_arena(&candles, false, &config);
             info!(
                 strategies = export.results.len(),
                 "backtest finished"

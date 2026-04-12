@@ -1,5 +1,6 @@
 mod api;
 mod arena;
+mod config;
 mod csv;
 mod data;
 mod engine;
@@ -8,6 +9,7 @@ mod models;
 mod paths;
 mod strategy;
 
+use config::RunConfig;
 use engine::BacktestRun;
 
 fn print_comparison_table(backtests: &[engine::BacktestResult]) {
@@ -71,7 +73,8 @@ async fn main() {
         .await
         .expect("load_from_binance");
 
-    let export: BacktestRun = arena::run_arena(&candles, verbose, 10, 50);
+    let export: BacktestRun =
+        arena::run_arena(&candles, verbose, &RunConfig::with_ma(10, 50));
 
     print_comparison_table(&export.results);
 

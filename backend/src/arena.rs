@@ -1,5 +1,6 @@
 //! Multi-strategy backtest orchestration: run engines, write CSVs, benchmark-relative return, scoring, ranking.
 
+use crate::config::RunConfig;
 use crate::csv;
 use crate::engine::{market_series, run, BacktestResult, BacktestRun};
 use crate::models::Candle;
@@ -70,9 +71,11 @@ fn apply_scoring(backtests: &mut [BacktestResult]) {
 }
 
 /// Run the default strategy set on `candles`, write per-strategy CSVs, apply vs–buy-and-hold deltas and arena scoring, then sort by score (highest first).
-pub fn run_arena(candles: &[Candle], verbose: bool, ma_short: usize, ma_long: usize) -> BacktestRun {
+pub fn run_arena(candles: &[Candle], verbose: bool, config: &RunConfig) -> BacktestRun {
     let market = market_series(candles);
 
+    let ma_short = config.ma_short;
+    let ma_long = config.ma_long;
     let moving_average_name = format!("moving_average_{ma_short}_{ma_long}");
     let mut backtests: Vec<BacktestResult> = vec![
         run(
@@ -83,7 +86,11 @@ pub fn run_arena(candles: &[Candle], verbose: bool, ma_short: usize, ma_long: us
         ),
         run(
             candles,
-            RsiStrategy::new(14, 70.0, 30.0),
+            RsiStrategy::new(
+                config.rsi_period,
+                config.rsi_overbought,
+                config.rsi_oversold,
+            ),
             RSI_NAME,
             verbose,
         ),

@@ -28,6 +28,7 @@ The system should prioritize:
 * Implemented strategies:
 
   * Moving Average crossover
+  * RSI mean-reversion
   * Random
   * Buy & Hold (benchmark)
 

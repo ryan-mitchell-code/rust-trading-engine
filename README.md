@@ -97,6 +97,7 @@ The Vite dev server can still expose **`/results.json`** from `outputs/results.j
 ### 📈 Strategies Implemented
 
 - Moving Average Crossover
+- RSI mean-reversion (14 / 70 / 30)
 - Random (baseline)
 - Buy & Hold (benchmark)
 

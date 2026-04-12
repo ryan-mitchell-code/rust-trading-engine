@@ -101,7 +101,7 @@ See [Documentation index](../README.md) for the full layout. Commonly used:
 ## ⚙️ Current Features
 
 - **Data**: Binance klines (with local JSON cache under `outputs/`), or CSV via `data::load_csv` for experiments
-- **Strategies**: moving average crossover, random, buy & hold
+- **Strategies**: moving average crossover, RSI mean-reversion, random, buy & hold
 - **Engine**: positions, capital, equity curve, per-bar drawdown series, trade log
 - **Metrics**: returns, max drawdown, drawdown duration, per-period Sharpe, scoring vs buy & hold
 - **Export**: `BacktestRun` JSON (`market` + `results`), per-strategy CSVs, CLI comparison table

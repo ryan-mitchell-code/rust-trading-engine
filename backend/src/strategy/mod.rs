@@ -7,9 +7,11 @@ pub trait Strategy {
 pub mod buy_and_hold;
 pub mod moving_average;
 pub mod random;
+pub mod rsi;
 
 pub use self::{
     buy_and_hold::BuyAndHold,
     moving_average::MovingAverage,
     random::RandomStrategy,
+    rsi::RsiStrategy,
 };

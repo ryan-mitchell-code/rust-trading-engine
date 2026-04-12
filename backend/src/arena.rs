@@ -3,8 +3,9 @@
 use crate::csv;
 use crate::engine::{market_series, run, BacktestResult, BacktestRun};
 use crate::models::Candle;
-use crate::strategy::{BuyAndHold, MovingAverage, RandomStrategy};
+use crate::strategy::{BuyAndHold, MovingAverage, RandomStrategy, RsiStrategy};
 
+const RSI_NAME: &str = "RSI";
 const RANDOM_NAME: &str = "random";
 const BUY_AND_HOLD_NAME: &str = "buy_and_hold";
 
@@ -78,6 +79,12 @@ pub fn run_arena(candles: &[Candle], verbose: bool, ma_short: usize, ma_long: us
             candles,
             MovingAverage::new(ma_short, ma_long),
             &moving_average_name,
+            verbose,
+        ),
+        run(
+            candles,
+            RsiStrategy::new(14, 70.0, 30.0),
+            RSI_NAME,
             verbose,
         ),
         run(candles, RandomStrategy::new(), RANDOM_NAME, verbose),

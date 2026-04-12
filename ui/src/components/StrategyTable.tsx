@@ -1,4 +1,10 @@
-import type { BacktestResult } from "../types";
+import { cn } from "../lib/cn.ts";
+import {
+  metricDrawdownToneClass,
+  metricReturnToneClass,
+  metricSharpeToneClass,
+} from "../lib/metricStyles.ts";
+import type { BacktestResult } from "../types.ts";
 
 type StrategyTableProps = {
   results: BacktestResult[];
@@ -69,22 +75,37 @@ export function StrategyTable({
                   onSelectStrategy(r.name);
                 }
               }}
-              className={`cursor-pointer outline-none transition-colors hover:bg-slate-800/60 focus-visible:ring-2 focus-visible:ring-sky-500/60 ${
-                isSelected
-                  ? "bg-slate-800/75 ring-1 ring-inset ring-sky-500/50"
-                  : ""
-              }`}
+              className={cn(
+                "cursor-pointer outline-none transition-colors hover:bg-slate-800/60 focus-visible:ring-2 focus-visible:ring-sky-500/60",
+                isSelected &&
+                  "bg-slate-800/75 ring-1 ring-inset ring-sky-500/50",
+              )}
             >
               <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-100">
                 {r.name}
               </td>
-              <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+              <td
+                className={cn(
+                  "whitespace-nowrap px-4 py-3 tabular-nums",
+                  metricReturnToneClass(r.summary.return_pct),
+                )}
+              >
                 {fmtPct(r.summary.return_pct)}
               </td>
-              <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+              <td
+                className={cn(
+                  "whitespace-nowrap px-4 py-3 tabular-nums",
+                  metricDrawdownToneClass(),
+                )}
+              >
                 {fmtPct(r.summary.drawdown_pct)}
               </td>
-              <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+              <td
+                className={cn(
+                  "whitespace-nowrap px-4 py-3 tabular-nums",
+                  metricSharpeToneClass(),
+                )}
+              >
                 {fmtNum(r.summary.sharpe_ratio, 4)}
               </td>
               <td className="whitespace-nowrap px-4 py-3 tabular-nums">

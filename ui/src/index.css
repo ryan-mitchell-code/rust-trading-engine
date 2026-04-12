@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Match app chrome so overscroll (rubber-band) does not flash browser default white. */
+@layer base {
+  html {
+    @apply bg-slate-950;
+  }
+  body {
+    @apply bg-slate-950;
+  }
+}
+
 /* Native <select> arrows sit flush to the border; replace with an inset chevron. */
 @layer components {
   .select-inset-chevron {

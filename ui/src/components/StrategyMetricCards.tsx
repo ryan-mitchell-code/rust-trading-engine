@@ -23,8 +23,20 @@ export function StrategyMetricCards({
   onToggleStrategy,
 }: StrategyMetricCardsProps) {
   return (
-    <div className={`space-y-4 ${cardClass}`}>
-      <div className="flex justify-end">
+    <section
+      className={`space-y-5 ${cardClass}`}
+      aria-label="Strategy metrics"
+    >
+      <div className="flex flex-col gap-3 border-b border-slate-800/90 pb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold tracking-tight text-slate-200">
+            Strategies
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            Per-run snapshot: return, drawdown, Sharpe, and vs buy-and-hold. Your
+            choice here focuses the charts and markers below.
+          </p>
+        </div>
         <HelpHint
           label="How strategy selection works"
           text="Click a strategy card to focus charts and trade markers on that run. Click the same card again to show all strategies."
@@ -34,7 +46,7 @@ export function StrategyMetricCards({
       <div
         className="flex flex-wrap gap-3"
         role="list"
-        aria-label="Strategy metrics"
+        aria-label="Strategy metric cards"
       >
         {results.map((r) => {
           const isSelected = selectedStrategy === r.name;
@@ -115,6 +127,6 @@ export function StrategyMetricCards({
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

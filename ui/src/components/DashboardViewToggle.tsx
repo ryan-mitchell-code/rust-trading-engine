@@ -7,6 +7,8 @@ type DashboardViewToggleProps = {
   tableTabId: string;
   chartsPanelId: string;
   tablePanelId: string;
+  /** Accessible name for the tablist (e.g. ties to surrounding section). */
+  "aria-label"?: string;
 };
 
 export function DashboardViewToggle({
@@ -16,12 +18,13 @@ export function DashboardViewToggle({
   tableTabId,
   chartsPanelId,
   tablePanelId,
+  "aria-label": ariaLabel = "Dashboard view",
 }: DashboardViewToggleProps) {
   return (
     <div
-      className="inline-flex rounded-lg border border-slate-800 bg-slate-900/60 p-1 shadow-sm"
+      className="inline-flex shrink-0 rounded-lg border border-slate-800 bg-slate-900/60 p-1 shadow-sm"
       role="tablist"
-      aria-label="Dashboard view"
+      aria-label={ariaLabel}
     >
       <button
         id={chartsTabId}

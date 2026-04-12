@@ -101,6 +101,13 @@ export function App() {
 
         {run !== null && (
           <div className="space-y-8">
+            <ChartSection title="Market Price" dataset={dataset}>
+              <CandlestickChart
+                market={run.market}
+                interval={BACKTEST_INTERVAL}
+              />
+            </ChartSection>
+
             <StrategyMetricCards
               results={run.results}
               selectedStrategy={selectedStrategy}
@@ -108,30 +115,35 @@ export function App() {
               onToggleStrategy={handleToggleStrategy}
             />
 
-            <DashboardViewToggle
-              view={view}
-              onViewChange={setView}
-              chartsTabId={chartsTabId}
-              tableTabId={tableTabId}
-              chartsPanelId={chartsPanelId}
-              tablePanelId={tablePanelId}
-            />
+            <section className={`space-y-5 ${cardClass}`} aria-label="Performance">
+              <div className="flex flex-col gap-3 border-b border-slate-800/90 pb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold tracking-tight text-slate-200">
+                    Performance
+                  </h2>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Equity and drawdown charts, or the full metrics table — same
+                    strategy focus as the cards above.
+                  </p>
+                </div>
+                <DashboardViewToggle
+                  view={view}
+                  onViewChange={setView}
+                  chartsTabId={chartsTabId}
+                  tableTabId={tableTabId}
+                  chartsPanelId={chartsPanelId}
+                  tablePanelId={tablePanelId}
+                  aria-label="Charts or table layout"
+                />
+              </div>
 
-            <div
-              id={chartsPanelId}
-              role="tabpanel"
-              aria-labelledby={chartsTabId}
-              hidden={view !== "charts"}
-            >
-              {view === "charts" && (
-                <div className="space-y-8">
-                  <ChartSection title="Market Price" dataset={dataset}>
-                    <CandlestickChart
-                      market={run.market}
-                      interval={BACKTEST_INTERVAL}
-                    />
-                  </ChartSection>
-
+              <div
+                id={chartsPanelId}
+                role="tabpanel"
+                aria-labelledby={chartsTabId}
+                hidden={view !== "charts"}
+              >
+                {view === "charts" && (
                   <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                     <ChartSection title="Equity curves" dataset={dataset}>
                       <EquityChart
@@ -149,35 +161,35 @@ export function App() {
                       />
                     </ChartSection>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            <div
-              id={tablePanelId}
-              role="tabpanel"
-              aria-labelledby={tableTabId}
-              hidden={view !== "table"}
-            >
-              {view === "table" && (
-                <section className={`space-y-4 ${cardClass}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <h2 className="text-sm font-semibold tracking-tight text-slate-200">
-                      Strategy comparison
-                    </h2>
-                    <HelpHint
-                      label="How table selection works"
-                      text="Click a row to focus charts and trade markers on that strategy; click again to clear."
+              <div
+                id={tablePanelId}
+                role="tabpanel"
+                aria-labelledby={tableTabId}
+                hidden={view !== "table"}
+              >
+                {view === "table" && (
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-sm font-semibold tracking-tight text-slate-200">
+                        Strategy comparison
+                      </h3>
+                      <HelpHint
+                        label="How table selection works"
+                        text="Click a row to focus charts and trade markers on that strategy; click again to clear."
+                      />
+                    </div>
+                    <StrategyTable
+                      results={run.results}
+                      selectedStrategy={selectedStrategy}
+                      onSelectStrategy={handleToggleStrategy}
                     />
                   </div>
-                  <StrategyTable
-                    results={run.results}
-                    selectedStrategy={selectedStrategy}
-                    onSelectStrategy={handleToggleStrategy}
-                  />
-                </section>
-              )}
-            </div>
+                )}
+              </div>
+            </section>
           </div>
         )}
       </main>

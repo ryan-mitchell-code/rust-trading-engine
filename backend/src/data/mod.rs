@@ -3,6 +3,7 @@ mod binance;
 use crate::models::Candle;
 use crate::paths;
 use std::fs;
+use tracing::info;
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -32,18 +33,38 @@ pub fn load_csv<P: AsRef<Path>>(path: P) -> Vec<Candle> {
 }
 
 /// Load candles from Binance, using `outputs/binance_cache_<symbol>_<interval>_<limit>.json` when present.
-pub async fn load_from_binance(symbol: &str, interval: &str, limit: u16) -> Vec<Candle> {
+pub async fn load_from_binance(symbol: &str, interval: &str, limit: u16) -> Result<Vec<Candle>, String> {
     let cache_path = paths::binance_cache_file(symbol, interval, limit);
     if cache_path.exists() {
-        let text = fs::read_to_string(&cache_path).expect("read binance cache");
-        return serde_json::from_str(&text).expect("parse binance cache");
+        info!(
+            %symbol,
+            %interval,
+            limit,
+            path = %cache_path.display(),
+            "loading candles from cache"
+        );
+        let text = fs::read_to_string(&cache_path).map_err(|e| e.to_string())?;
+        let candles: Vec<Candle> = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        info!(bars = candles.len(), "loaded candles from cache");
+        return Ok(candles);
     }
 
-    let candles = fetch_klines(symbol, interval, limit).await;
-    let json = serde_json::to_string_pretty(&candles).expect("serialize binance cache");
+    info!(
+        %symbol,
+        %interval,
+        limit,
+        "cache miss; fetching from Binance"
+    );
+    let candles = fetch_klines(symbol, interval, limit).await?;
+    let json = serde_json::to_string_pretty(&candles).map_err(|e| e.to_string())?;
     if let Some(parent) = cache_path.parent() {
-        fs::create_dir_all(parent).expect("create outputs dir");
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    fs::write(&cache_path, json).expect("write binance cache");
-    candles
+    fs::write(&cache_path, json).map_err(|e| e.to_string())?;
+    info!(
+        bars = candles.len(),
+        path = %cache_path.display(),
+        "wrote Binance response to cache"
+    );
+    Ok(candles)
 }

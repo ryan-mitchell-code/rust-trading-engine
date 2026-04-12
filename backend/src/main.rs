@@ -1,3 +1,4 @@
+mod api;
 mod arena;
 mod csv;
 mod data;
@@ -55,14 +56,20 @@ fn print_comparison_table(backtests: &[engine::BacktestResult]) {
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() {
-    let verbose = std::env::args()
-        .skip(1)
-        .any(|a| a == "-v" || a == "--verbose");
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "--serve" || a == "-s") {
+        api::serve().await;
+        return;
+    }
+
+    let verbose = args.iter().any(|a| a == "-v" || a == "--verbose");
 
     // Uses `outputs/binance_cache_*.json` when present so repeat runs skip the API.
-    let candles = data::load_from_binance("BTCUSDT", "1d", 1000).await;
+    let candles = data::load_from_binance("BTCUSDT", "1d", 1000)
+        .await
+        .expect("load_from_binance");
 
     let export: BacktestRun = arena::run_arena(&candles, verbose);
 

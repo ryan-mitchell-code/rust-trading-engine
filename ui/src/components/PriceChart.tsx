@@ -6,7 +6,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { BacktestRun } from "../types";
+import type { MarketSeries } from "../types";
 import {
   formatChartTooltipTimestamp,
   formatChartXAxisTickLabel,
@@ -16,7 +16,7 @@ import {
 } from "./chartXAxis.ts";
 
 type PriceChartProps = {
-  run: BacktestRun;
+  market: MarketSeries;
 };
 
 /** Single-series stroke: visible on dark bg, neutral slate–sky. */
@@ -35,21 +35,21 @@ function formatPriceTooltip(n: number): string {
   });
 }
 
-/** `[timestamp, close]` → rows for Recharts. Does not mutate `run`. */
+/** `[timestamp, close]` → rows for Recharts. Does not mutate `market`. */
 function marketToChartData(
-  run: BacktestRun,
+  market: MarketSeries,
 ): { timestamp: string; price: number }[] {
-  return run.market.map(([timestamp, price]) => ({ timestamp, price }));
+  return market.map(([timestamp, price]) => ({ timestamp, price }));
 }
 
-export function PriceChart({ run }: PriceChartProps) {
-  if (run.market.length === 0) {
+export function PriceChart({ market }: PriceChartProps) {
+  if (market.length === 0) {
     return (
       <p className="text-sm text-slate-500">No market data to plot.</p>
     );
   }
 
-  const chartData = marketToChartData(run);
+  const chartData = marketToChartData(market);
   const pointCount = chartData.length;
 
   return (

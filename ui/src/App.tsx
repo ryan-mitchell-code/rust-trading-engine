@@ -1,54 +1,70 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { DrawdownChart } from "./components/DrawdownChart.tsx";
 import { EquityChart } from "./components/EquityChart.tsx";
 import { PriceChart } from "./components/PriceChart.tsx";
 import { StrategyTable } from "./components/StrategyTable.tsx";
 import type { BacktestRun } from "./types.ts";
 
+const RUN_BODY = {
+  dataset: "BTCUSDT",
+  interval: "1d",
+} as const;
+
+async function fetchBacktestRun(): Promise<BacktestRun> {
+  const res = await fetch("/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(RUN_BODY),
+  });
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<BacktestRun>;
+}
+
 export function App() {
   const [run, setRun] = useState<BacktestRun | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch("/results.json")
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`${res.status} ${res.statusText}`);
-        }
-        return res.json() as Promise<BacktestRun>;
-      })
-      .then((data) => {
-        if (!cancelled) {
-          setError(null);
-          setRun(data);
-        }
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          const message =
-            e instanceof Error ? e.message : "Failed to load results";
-          setError(message);
-          setRun(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+  const handleRunBacktest = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchBacktestRun();
+      setRun(data);
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Failed to run backtest";
+      setError(message);
+      setRun(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   return (
     <div className="min-h-dvh bg-slate-950 text-slate-100">
       <header className="border-b border-slate-800 px-6 py-5">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-50">
-          Rust Trader
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Backtest overview — data from{" "}
-          <code className="text-slate-400">outputs/results.json</code>
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+              Rust Trader
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Backtest overview — data from the API (
+              <code className="text-slate-400">POST /run</code>)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleRunBacktest}
+            disabled={loading}
+            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "Running…" : "Run Backtest"}
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto max-w-6xl space-y-10 px-6 py-8">
@@ -61,8 +77,15 @@ export function App() {
           </div>
         )}
 
-        {run === null && error === null && (
-          <p className="text-sm text-slate-500">Loading backtest results…</p>
+        {loading && (
+          <p className="text-sm text-slate-500">Running backtest…</p>
+        )}
+
+        {!loading && run === null && error === null && (
+          <p className="text-sm text-slate-500">
+            Click <span className="text-slate-400">Run Backtest</span> to load
+            results.
+          </p>
         )}
 
         {run !== null && (
@@ -71,7 +94,7 @@ export function App() {
               <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
                 Market Price
               </h2>
-              <PriceChart run={run} />
+              <PriceChart market={run.market} />
             </section>
 
             <section className="space-y-3">

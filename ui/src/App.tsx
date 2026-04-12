@@ -13,16 +13,13 @@ function findSelectedResult(
   return results.find((r) => r.name === selectedStrategy);
 }
 
-const RUN_BODY = {
-  dataset: "BTCUSDT",
-  interval: "1d",
-} as const;
+const INTERVAL = "1d" as const;
 
-async function fetchBacktestRun(): Promise<BacktestRun> {
+async function fetchBacktestRun(dataset: string): Promise<BacktestRun> {
   const res = await fetch("/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(RUN_BODY),
+    body: JSON.stringify({ dataset, interval: INTERVAL }),
   });
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}`);
@@ -34,6 +31,7 @@ export function App() {
   const [run, setRun] = useState<BacktestRun | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dataset, setDataset] = useState("BTCUSDT");
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
 
   const handleToggleStrategy = useCallback((strategyName: string) => {
@@ -46,7 +44,7 @@ export function App() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchBacktestRun();
+      const data = await fetchBacktestRun(dataset);
       setSelectedStrategy(null);
       setRun(data);
     } catch (e: unknown) {
@@ -58,7 +56,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dataset]);
 
   const selected =
     run !== null
@@ -79,14 +77,34 @@ export function App() {
               <code className="text-slate-400">POST /run</code>)
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleRunBacktest}
-            disabled={loading}
-            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? "Running…" : "Run Backtest"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              htmlFor="dataset-select"
+              className="text-sm text-slate-400"
+            >
+              Dataset
+            </label>
+            <select
+              id="dataset-select"
+              value={dataset}
+              onChange={(e) => {
+                setDataset(e.target.value);
+              }}
+              disabled={loading}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/40 focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="BTCUSDT">BTCUSDT</option>
+              <option value="ETHUSDT">ETHUSDT</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleRunBacktest}
+              disabled={loading}
+              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? "Running…" : "Run Backtest"}
+            </button>
+          </div>
         </div>
       </header>
 

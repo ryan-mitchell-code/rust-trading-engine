@@ -48,6 +48,11 @@ The system should prioritize:
 
   * `BacktestRun { market, results }`
 
+* Configuration:
+
+  * `RunConfig` bundles MA windows and RSI parameters for each arena run
+  * `POST /run` accepts MA and RSI fields (see §6) with defaults
+
 ---
 
 ### Frontend (React + TypeScript)
@@ -57,19 +62,21 @@ The system should prioritize:
   * Market OHLC (candlestick)
   * Equity curves
   * Drawdown curves
+  * Candlestick time-range presets (e.g. All, 1M, 3M, 6M, 1Y) via chart time scale
 
 * Interaction:
 
   * Run backtest via API
   * Dataset selection (BTC, ETH)
-  * Strategy selection (dropdown + cards)
+  * Strategy selection (cards + comparison table)
   * View toggle (charts / table)
+  * Collapsible **Settings** panel for strategy parameters (MA short/long, RSI period and thresholds)
 
 * Visual features:
 
   * Strategy summary cards
   * Best strategy highlighting
-  * Trade markers on the market chart *(optional / follow-up — not on candlestick yet)*
+  * Trade markers on the candlestick chart when a strategy is selected
 
 ---
 
@@ -100,7 +107,8 @@ The system should prioritize:
 * Compute performance metrics
 * Compare strategies vs benchmark (Buy & Hold)
 * Rank strategies using scoring system
-* (Future) include relative performance metrics in backend
+* Per-strategy **relative return vs Buy & Hold** in results (`summary.relative_return`)
+* (Future) extend relative / cross-strategy metrics in backend as needed
 
 ---
 
@@ -172,12 +180,13 @@ Goal:
 * [x] Strategy selection & highlighting
 * [x] View toggle (charts / table)
 * [x] Strategy summary cards
+* [x] Parameter controls for **Moving Average** (short / long) and **RSI** (period, overbought, oversold), sent with `POST /run`
+* [x] Collapsible settings panel + inline param summary when collapsed
 
 #### Remaining
 
-* [ ] Strategy enable/disable (API-driven)
-* [ ] Parameter controls (e.g. MA windows)
-* [ ] Timeframe selection (1d, 4h, etc.)
+* [ ] Strategy enable/disable (API-driven — which strategies run in the arena)
+* [ ] Timeframe selection (1d, 4h, etc.) end-to-end (UI + API + data load)
 
 ---
 
@@ -189,7 +198,7 @@ Goal:
 
 * [ ] Parameter sweeps
 * [ ] Compare multiple runs
-* [ ] Relative performance vs benchmark (backend)
+* [ ] Deeper relative performance vs benchmark (beyond current `relative_return` + scoring)
 * [ ] Alternative scoring models
 
 ---
@@ -230,13 +239,22 @@ Goal:
 ```json
 {
   "dataset": "BTCUSDT",
-  "interval": "1d"
+  "interval": "1d",
+  "ma_short": 10,
+  "ma_long": 50,
+  "rsi_period": 14,
+  "rsi_overbought": 70,
+  "rsi_oversold": 30
 }
 ```
+
+`ma_*` and `rsi_*` fields are optional; defaults match the UI (e.g. MA 10/50, RSI 14/70/30).
 
 ---
 
 ### Request (Future)
+
+Structured per-strategy enablement and configuration (replacing the flat MA/RSI fields above):
 
 ```json
 {
@@ -273,19 +291,20 @@ Each row is **`[timestamp, open, high, low, close]`** (numbers are `f64`).
 ### Notes
 
 * API is intentionally minimal
-* Will expand to support:
+* MA/RSI parameters are supported; **arena strategies are still fixed** (MA, RSI, random, buy-and-hold) until enable/disable lands
+* Future expansion:
 
-  * strategy configuration
-  * parameter inputs
+  * strategy enable/disable and richer `strategies` JSON (see above)
+  * additional strategy types and parameters
 
 ---
 
 ## 7. Immediate Next Steps
 
-1. Strategy configuration via API
-2. Parameter controls in UI
-3. Timeframe selection
-4. Move derived metrics (e.g. vs Buy & Hold) to backend
+1. **Timeframe selection** — user-selectable interval in UI and `POST /run`, backed by Binance load
+2. **Strategy enable/disable** — API + arena to run a subset of strategies
+3. **Structured strategy config** — optional `strategies` array (or equivalent) on `POST /run`
+4. **Phase 3** — sweeps, multi-run comparison, scoring experiments
 
 ---
 

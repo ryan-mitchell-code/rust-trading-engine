@@ -26,11 +26,21 @@ async function messageFromFailedResponse(res: Response): Promise<string> {
   return fallback;
 }
 
-export async function fetchBacktestRun(dataset: Dataset): Promise<BacktestRun> {
+export type MaParams = { short: number; long: number };
+
+export async function fetchBacktestRun(
+  dataset: Dataset,
+  ma: MaParams,
+): Promise<BacktestRun> {
   const res = await fetch("/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dataset, interval: BACKTEST_INTERVAL }),
+    body: JSON.stringify({
+      dataset,
+      interval: BACKTEST_INTERVAL,
+      ma_short: ma.short,
+      ma_long: ma.long,
+    }),
   });
   if (!res.ok) {
     throw new Error(await messageFromFailedResponse(res));

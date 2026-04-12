@@ -4,6 +4,8 @@ A Rust-based trading backtesting and strategy evaluation engine built as a hands
 
 This project focuses on building a **modular, extensible system** for testing and comparing trading strategies, while learning Rust and core quantitative trading concepts.
 
+**Documentation:** [docs/README.md](docs/README.md) — product spec, learning notes, glossary, UI rules, and dev log (organized by folder).
+
 ---
 
 ## ▶️ Run locally (API + UI — default)
@@ -182,7 +184,7 @@ Key design principles:
 
 ## 📓 Dev Log
 
-See `/docs/dev-log.md` for reflections, mistakes, and learning notes throughout development.
+See [`docs/learning/dev-log.md`](docs/learning/dev-log.md) for reflections, mistakes, and learning notes throughout development. The full doc index is [`docs/README.md`](docs/README.md).
 
 ---
 

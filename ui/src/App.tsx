@@ -25,6 +25,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dataset, setDataset] = useState<Dataset>("BTCUSDT");
+  const [maShort, setMaShort] = useState(10);
+  const [maLong, setMaLong] = useState(50);
   const [view, setView] = useState<DashboardView>("charts");
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
 
@@ -44,7 +46,10 @@ export function App() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchBacktestRun(dataset);
+      const data = await fetchBacktestRun(dataset, {
+        short: maShort,
+        long: maLong,
+      });
       setRun(data);
     } catch (e: unknown) {
       const message =
@@ -55,7 +60,7 @@ export function App() {
       setLoading(false);
       setSelectedStrategy(null);
     }
-  }, [dataset]);
+  }, [dataset, maShort, maLong]);
 
   const bestStrategyName =
     run !== null ? bestStrategyNameByReturn(run.results) : null;
@@ -64,8 +69,12 @@ export function App() {
     <div className="min-h-dvh bg-slate-950 text-slate-100">
       <AppHeader
         dataset={dataset}
+        maShort={maShort}
+        maLong={maLong}
         loading={loading}
         onDatasetChange={setDataset}
+        onMaShortChange={setMaShort}
+        onMaLongChange={setMaLong}
         onRunBacktest={handleRunBacktest}
       />
 

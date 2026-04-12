@@ -1,6 +1,9 @@
 import { useCallback, useState } from "react";
 import { DrawdownChart } from "./components/DrawdownChart.tsx";
-import { EquityChart } from "./components/EquityChart.tsx";
+import {
+  BENCHMARK_STRATEGY_NAME,
+  EquityChart,
+} from "./components/EquityChart.tsx";
 import { PriceChart } from "./components/PriceChart.tsx";
 import { StrategyTable } from "./components/StrategyTable.tsx";
 import { fetchBacktestRun, type Dataset } from "./services/api.ts";
@@ -56,6 +59,23 @@ export function App() {
     run && findSelectedResult(run.results, selectedStrategy);
   const tradesForChart = selected?.trades;
 
+  const buyHoldReturnPct =
+    run !== null
+      ? run.results.find((r) => r.name === BENCHMARK_STRATEGY_NAME)?.summary
+          .return_pct
+      : undefined;
+
+  let bestStrategyName: string | null = null;
+  if (run !== null) {
+    let maxReturn = -Infinity;
+    for (const r of run.results) {
+      if (r.summary.return_pct > maxReturn) {
+        maxReturn = r.summary.return_pct;
+        bestStrategyName = r.name;
+      }
+    }
+  }
+
   return (
     <div className="min-h-dvh bg-slate-950 text-slate-100">
       <header className="sticky top-0 z-20 border-b border-slate-800/90 bg-slate-950/75 px-4 py-3 backdrop-blur-md lg:px-6 xl:px-8 sm:py-4">
@@ -83,7 +103,7 @@ export function App() {
               value={dataset}
               onChange={(e) => setDataset(e.target.value as Dataset)}
               disabled={loading}
-              className="rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="select-inset-chevron rounded-lg border border-slate-700 bg-slate-950/80 py-2 pl-3 pr-10 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="BTCUSDT">BTCUSDT</option>
               <option value="ETHUSDT">ETHUSDT</option>
@@ -148,7 +168,7 @@ export function App() {
                       const v = e.target.value;
                       setSelectedStrategy(v === "" ? null : v);
                     }}
-                    className="w-full min-w-[12rem] rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 sm:max-w-xs"
+                    className="select-inset-chevron w-full min-w-[12rem] rounded-lg border border-slate-700 bg-slate-950/80 py-2 pl-3 pr-10 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 sm:max-w-xs"
                   >
                     <option value="">All</option>
                     {run.results.map((r) => (
@@ -167,7 +187,13 @@ export function App() {
               >
                 {run.results.map((r) => {
                   const isSelected = selectedStrategy === r.name;
+                  const isBest =
+                    bestStrategyName !== null && r.name === bestStrategyName;
                   const s = r.summary;
+                  const vsBh =
+                    buyHoldReturnPct !== undefined
+                      ? s.return_pct - buyHoldReturnPct
+                      : null;
                   return (
                     <button
                       key={r.name}
@@ -175,10 +201,12 @@ export function App() {
                       role="listitem"
                       aria-pressed={isSelected}
                       onClick={() => handleToggleStrategy(r.name)}
-                      className={`w-full min-w-[10rem] max-w-full flex-1 rounded-lg border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60 sm:max-w-[15rem] ${
+                      className={`w-full min-w-[10rem] max-w-full flex-1 rounded-lg border px-4 py-3 text-left transition-all duration-150 hover:-translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60 sm:max-w-[15rem] ${
                         isSelected
                           ? "border-sky-500 bg-slate-800/95 shadow-sm ring-1 ring-sky-500/35"
-                          : "border-slate-800 bg-slate-900/45 hover:border-slate-600 hover:bg-slate-900/75"
+                          : isBest
+                            ? "border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500/50 hover:bg-emerald-500/[0.08]"
+                            : "border-slate-800 bg-slate-900/45 hover:border-slate-600 hover:bg-slate-900/75"
                       }`}
                     >
                       <div
@@ -190,22 +218,41 @@ export function App() {
                       <dl className="mt-2 space-y-1 text-xs">
                         <div className="flex justify-between gap-3">
                           <dt className="text-slate-500">Return</dt>
-                          <dd className="tabular-nums text-slate-200">
+                          <dd
+                            className={`tabular-nums ${
+                              s.return_pct >= 0
+                                ? "text-emerald-400"
+                                : "text-red-400"
+                            }`}
+                          >
                             {s.return_pct.toFixed(2)}%
                           </dd>
                         </div>
                         <div className="flex justify-between gap-3">
                           <dt className="text-slate-500">Drawdown</dt>
-                          <dd className="tabular-nums text-slate-200">
+                          <dd className="tabular-nums text-red-400">
                             {s.drawdown_pct.toFixed(2)}%
                           </dd>
                         </div>
                         <div className="flex justify-between gap-3">
                           <dt className="text-slate-500">Sharpe</dt>
-                          <dd className="tabular-nums text-slate-200">
+                          <dd className="tabular-nums text-sky-400">
                             {s.sharpe_ratio.toFixed(4)}
                           </dd>
                         </div>
+                        {vsBh !== null && (
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-slate-500">vs B&H</dt>
+                            <dd
+                              className={`tabular-nums ${
+                                vsBh >= 0 ? "text-emerald-400" : "text-red-400"
+                              }`}
+                            >
+                              {vsBh >= 0 ? "+" : ""}
+                              {vsBh.toFixed(2)}%
+                            </dd>
+                          </div>
+                        )}
                       </dl>
                     </button>
                   );
@@ -225,7 +272,7 @@ export function App() {
                 onClick={() => setView("charts")}
                 className={`rounded-md px-4 py-2 text-sm font-medium transition ${
                   view === "charts"
-                    ? "bg-sky-600 text-white shadow-sm"
+                    ? "bg-sky-600 text-white shadow-sm ring-1 ring-sky-400/40"
                     : "text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -238,7 +285,7 @@ export function App() {
                 onClick={() => setView("table")}
                 className={`rounded-md px-4 py-2 text-sm font-medium transition ${
                   view === "table"
-                    ? "bg-sky-600 text-white shadow-sm"
+                    ? "bg-sky-600 text-white shadow-sm ring-1 ring-sky-400/40"
                     : "text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -250,7 +297,7 @@ export function App() {
               <div className="space-y-8">
                 <section className={`space-y-4 ${cardClass}`}>
                   <h2 className="text-sm font-semibold tracking-tight text-slate-200">
-                    Market Price
+                    Market Price — {dataset}
                   </h2>
                   <div className="pt-2">
                     <PriceChart market={run.market} trades={tradesForChart} />
@@ -260,7 +307,7 @@ export function App() {
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                   <section className={`space-y-4 ${cardClass}`}>
                     <h2 className="text-sm font-semibold tracking-tight text-slate-200">
-                      Equity curves
+                      Equity curves — {dataset}
                     </h2>
                     <div className="pt-2">
                       <EquityChart
@@ -273,7 +320,7 @@ export function App() {
 
                   <section className={`space-y-4 ${cardClass}`}>
                     <h2 className="text-sm font-semibold tracking-tight text-slate-200">
-                      Drawdown
+                      Drawdown — {dataset}
                     </h2>
                     <div className="pt-2">
                       <DrawdownChart

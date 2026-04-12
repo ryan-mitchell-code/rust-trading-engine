@@ -5,7 +5,6 @@ use crate::engine::{market_series, run, BacktestResult, BacktestRun};
 use crate::models::Candle;
 use crate::strategy::{BuyAndHold, MovingAverage, RandomStrategy};
 
-const MOVING_AVERAGE_NAME: &str = "moving_average_5_20";
 const RANDOM_NAME: &str = "random";
 const BUY_AND_HOLD_NAME: &str = "buy_and_hold";
 
@@ -70,14 +69,15 @@ fn apply_scoring(backtests: &mut [BacktestResult]) {
 }
 
 /// Run the default strategy set on `candles`, write per-strategy CSVs, apply vs–buy-and-hold deltas and arena scoring, then sort by score (highest first).
-pub fn run_arena(candles: &[Candle], verbose: bool) -> BacktestRun {
+pub fn run_arena(candles: &[Candle], verbose: bool, ma_short: usize, ma_long: usize) -> BacktestRun {
     let market = market_series(candles);
 
+    let moving_average_name = format!("moving_average_{ma_short}_{ma_long}");
     let mut backtests: Vec<BacktestResult> = vec![
         run(
             candles,
-            MovingAverage::new(5, 20),
-            MOVING_AVERAGE_NAME,
+            MovingAverage::new(ma_short, ma_long),
+            &moving_average_name,
             verbose,
         ),
         run(candles, RandomStrategy::new(), RANDOM_NAME, verbose),

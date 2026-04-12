@@ -3,15 +3,23 @@ import type { Dataset } from "../services/api.ts";
 
 type AppHeaderProps = {
   dataset: Dataset;
+  maShort: number;
+  maLong: number;
   loading: boolean;
   onDatasetChange: (dataset: Dataset) => void;
+  onMaShortChange: (n: number) => void;
+  onMaLongChange: (n: number) => void;
   onRunBacktest: () => void;
 };
 
 export function AppHeader({
   dataset,
+  maShort,
+  maLong,
   loading,
   onDatasetChange,
+  onMaShortChange,
+  onMaLongChange,
   onRunBacktest,
 }: AppHeaderProps) {
   return (
@@ -45,6 +53,42 @@ export function AppHeader({
             <option value="BTCUSDT">BTCUSDT</option>
             <option value="ETHUSDT">ETHUSDT</option>
           </select>
+          <label
+            htmlFor="ma-short"
+            className="text-sm font-medium text-slate-400"
+          >
+            Short MA
+          </label>
+          <input
+            id="ma-short"
+            type="number"
+            min={1}
+            step={1}
+            value={maShort}
+            onChange={(e) =>
+              onMaShortChange(Math.max(1, parseInt(e.target.value, 10) || 1))
+            }
+            disabled={loading}
+            className="w-20 rounded-lg border border-slate-700 bg-slate-950/80 py-2 pl-3 pr-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+          <label
+            htmlFor="ma-long"
+            className="text-sm font-medium text-slate-400"
+          >
+            Long MA
+          </label>
+          <input
+            id="ma-long"
+            type="number"
+            min={2}
+            step={1}
+            value={maLong}
+            onChange={(e) =>
+              onMaLongChange(Math.max(2, parseInt(e.target.value, 10) || 2))
+            }
+            disabled={loading}
+            className="w-20 rounded-lg border border-slate-700 bg-slate-950/80 py-2 pl-3 pr-2 text-sm text-slate-100 shadow-sm outline-none ring-sky-500/30 transition focus:border-sky-600 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
           <button
             type="button"
             onClick={onRunBacktest}

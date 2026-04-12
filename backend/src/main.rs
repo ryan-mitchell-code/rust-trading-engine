@@ -71,7 +71,7 @@ async fn main() {
         .await
         .expect("load_from_binance");
 
-    let export: BacktestRun = arena::run_arena(&candles, verbose);
+    let export: BacktestRun = arena::run_arena(&candles, verbose, 10, 50);
 
     print_comparison_table(&export.results);
 

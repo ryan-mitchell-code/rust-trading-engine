@@ -13,10 +13,22 @@ use crate::data;
 
 const DEFAULT_LIMIT: u16 = 1000;
 
+fn default_ma_short() -> u32 {
+    10
+}
+
+fn default_ma_long() -> u32 {
+    50
+}
+
 #[derive(Deserialize)]
 pub struct RunRequest {
     pub dataset: String,
     pub interval: String,
+    #[serde(default = "default_ma_short")]
+    pub ma_short: u32,
+    #[serde(default = "default_ma_long")]
+    pub ma_long: u32,
 }
 
 pub async fn serve() {
@@ -47,12 +59,36 @@ async fn run_handler(Json(req): Json<RunRequest>) -> impl IntoResponse {
     info!(
         dataset = %req.dataset,
         interval = %req.interval,
+        ma_short = req.ma_short,
+        ma_long = req.ma_long,
         "POST /run"
     );
+
+    let ma_short = req.ma_short as usize;
+    let ma_long = req.ma_long as usize;
+    if ma_short == 0 || ma_long == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "ma_short and ma_long must be at least 1"
+            })),
+        )
+            .into_response();
+    }
+    if ma_short >= ma_long {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "ma_short must be less than ma_long"
+            })),
+        )
+            .into_response();
+    }
+
     match data::load_from_binance(&req.dataset, &req.interval, DEFAULT_LIMIT).await {
         Ok(candles) => {
             info!(bars = candles.len(), "running backtest");
-            let export = arena::run_arena(&candles, false);
+            let export = arena::run_arena(&candles, false, ma_short, ma_long);
             info!(
                 strategies = export.results.len(),
                 "backtest finished"

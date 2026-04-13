@@ -28,54 +28,54 @@ The system should prioritize:
 * Backtesting engine with:
 
   * Position management
-  * Trade lifecycle (BUY → SELL)
-  * Capital tracking
+  * Trade lifecycle (BUY → SELL, plus forced close on last bar if still open)
+  * Capital tracking (mark-to-market each bar)
 * Execution model:
 
-  * Currently **same-candle execution (to be improved)**
+  * Signals are computed from the **current** bar; fills use that bar’s **close** (same-bar execution → lookahead vs live trading).
+  * Position size: fixed fraction of **cash at entry** (10% of cash per buy).
 
 ---
 
 #### Strategies
 
-* Moving Average crossover (trend-following)
-* RSI mean-reversion
-* Random (baseline)
-* Buy & Hold (benchmark)
+Arena runs a **fixed set** of four strategies every request (not yet selectable per run):
+
+* Moving average crossover (trend-following; name includes window params, e.g. `moving_average_10_50`)
+* RSI mean-reversion (`RSI`)
+* Random (`random`)
+* Buy & Hold (`buy_and_hold`) — benchmark for relative return
 
 ---
 
 #### Metrics
 
-* Return %
-* Sharpe ratio
-* Max drawdown
-* Drawdown duration
-* Win rate
-* Avg PnL
-* Relative return vs Buy & Hold
+* Return %, drawdown % (peak-to-trough ratio as percent)
+* Sharpe ratio (per **bar** simple returns on the equity curve; **not** annualized)
+* Max drawdown, max drawdown duration (consecutive bars below peak)
+* Win rate, avg PnL (per completed round-trip as recorded by the engine)
+* Relative return vs Buy & Hold (return % delta)
+* Composite **score** (arena): normalized Sharpe, return, and drawdown components with fixed weights; results are **sorted by score** in the API response
 
 ---
 
 #### Data
 
-* Binance OHLC (open, high, low, close)
-* Cached locally
+* Binance spot klines → full OHLC per bar
+* Fetched per request and cached only in memory for that run (no persistent local cache layer in-app)
+* Default fetch limit: **1000** bars (`POST /run`)
 
 ---
 
 #### API
 
 * `POST /run`
-* Accepts:
+* JSON body:
 
-  * dataset
-  * interval
-  * MA parameters
-  * RSI parameters
-* Uses `RunConfig` internally
-
----
+  * `dataset` (symbol, e.g. `BTCUSDT`)
+  * `interval` (Binance kline interval, e.g. `1d`, `4h`)
+  * `ma_short`, `ma_long`, `rsi_period`, `rsi_overbought`, `rsi_oversold`
+* Request is mapped to [`RunConfig`](../../backend/src/config.rs) (MA + RSI only; strategy set is not configurable yet).
 
 ---
 
@@ -88,27 +88,27 @@ The system should prioritize:
 * Candlestick chart (OHLC)
 * Equity curves (multi-strategy)
 * Drawdown chart
-* Trade markers on chart
+* Trade markers on the price chart when a strategy is focused
 
 ---
 
 #### Interaction
 
 * Run backtest via API
-* Dataset selection
-* Strategy selection (cards + table)
+* Dataset selection (header): `BTCUSDT`, `ETHUSDT`
+* Strategy **focus** (cards + table): highlights one strategy for equity/drawdown/trade markers; does **not** change which strategies the backend runs
 * Chart/table toggle
-* Time range controls (via `setVisibleRange`)
-* Collapsible **Settings panel** for parameters
+* Time range presets on the **candlestick** chart (`timeScale().setVisibleRange` via shared helpers)
+* Collapsible **Settings** panel for MA and RSI parameters
 
 ---
 
-#### UX Features
+#### UX
 
-* Strategy summary cards
-* Best strategy highlighting
-* Inline parameter summary
-* Clean dashboard layout
+* Strategy summary cards; table includes **Score** column (matches API sort order)
+* **“Best” card styling** uses **highest `return_pct`**, not composite score (may differ from top row in the table)
+* Inline parameter summary when settings are collapsed
+* Dashboard layout as implemented
 
 ---
 
@@ -119,8 +119,8 @@ The system should prioritize:
 ### 3.1 Data
 
 * Load OHLC data
-* Support multiple datasets
-* (Future) support multiple timeframes
+* Support multiple datasets (via UI + API symbol string)
+* UI currently sends a **fixed** interval (`1d` in code); changing bar size requires wiring interval through the UI to match `POST /run`
 
 ---
 
@@ -140,8 +140,8 @@ The system should prioritize:
 
 * Compute performance metrics
 * Compare vs Buy & Hold
-* Rank strategies
-* Support relative performance metrics
+* Rank strategies (composite score + sort)
+* Relative performance metrics
 
 ---
 
@@ -158,7 +158,7 @@ The system should prioritize:
 
 * Run simulations from UI
 * Adjust parameters
-* Highlight strategies
+* Focus / highlight strategies for charts
 * Explore results visually
 
 ---
@@ -170,6 +170,7 @@ The system should prioritize:
 * Avoid logic duplication
 * Prefer clarity over abstraction
 * Build incrementally toward flexibility
+* **Extend execution and costs in one place** (engine / fill path) so strategies stay signal-only and tests can pin fill semantics
 
 ---
 
@@ -177,7 +178,7 @@ The system should prioritize:
 
 ---
 
-### Phase 1 — Visualization ✅
+### Phase 1 — Visualization
 
 * Charts (price, equity, drawdown)
 * Strategy comparison
@@ -185,77 +186,58 @@ The system should prioritize:
 
 ---
 
-### Phase 2 — Interaction 🚧
+### Phase 2 — Interaction
 
-#### Completed
+#### Done
 
 * Run via API
 * Dataset selection
-* Strategy highlighting
+* Strategy **focus** for charts and markers
 * Parameter controls (MA + RSI)
 * Collapsible settings panel
-* Time range controls (chart zoom)
+* Candlestick time-range presets (zoom)
+
+#### Still open (not blocking Phase 2.5)
+
+* [ ] Strategy **enable/disable** (request-driven: skip strategies in arena + reflect in UI)
+* [ ] **Interval** selection in UI (pass through to `POST /run`; keep chart time scale in sync)
 
 ---
 
-#### Remaining
+### Phase 2.5 — Realism & execution
 
-* [ ] Strategy enable/disable (API-driven)
-* [ ] Timeframe selection (1d, 4h, etc.)
+**Goal:** make backtests closer to live trading and remove obvious lookahead.
 
----
+#### Execution
 
----
+* [ ] Execute entries/exits on **next bar’s open** (or another explicit rule), not the signal bar’s close
+* [ ] Document and test bar indexing so signal and fill cannot use future OHLC
 
-### ✨ Phase 2.5 — Realism & Execution (NEW)
+#### Frictions
 
-**Goal:**
+* [ ] Trading fees (e.g. configurable bps per side)
+* [ ] Slippage (simple model first: fixed bps or fixed tick off price)
 
-> Make backtests reflect real trading conditions
+#### Engine structure
 
----
-
-#### Execution Model
-
-* [ ] Execute trades on **next candle open**
-* [ ] Remove lookahead bias
+* [ ] Keep **signal generation** (strategies) separate from **fill / fee / slippage** application
+* [ ] Single, well-tested code path for “apply signal → position / cash / trade log”
+* [ ] Regression tests: known candle series → expected fills and equity steps
 
 ---
 
-#### Trading Frictions
+### Phase 3 — Strategy research
 
-* [ ] Add trading fees (e.g. 0.1%)
-* [ ] Add slippage (simple model)
-
----
-
-#### Engine Improvements
-
-* [ ] Separate **signal vs execution**
-* [ ] Ensure consistent fill logic
-
----
-
----
-
-### Phase 3 — Strategy Research
-
-**Goal:**
-
-> Improve and evaluate strategies meaningfully
-
----
+**Goal:** improve and evaluate strategies meaningfully.
 
 * [ ] Hybrid strategies (e.g. MA + RSI)
 * [ ] Parameter sweeps
 * [ ] Multi-run comparison
-* [ ] Alternative scoring models
+* [ ] **Scoring:** composite score exists with fixed weights; add configurability or alternative formulas if needed
 
 ---
 
----
-
-### Phase 4 — Portfolio Simulation
+### Phase 4 — Portfolio simulation
 
 * [ ] Combine strategies
 * [ ] Allocate capital
@@ -263,22 +245,20 @@ The system should prioritize:
 
 ---
 
----
-
 ### Phase 5 — Advanced
 
 * [ ] Multi-dataset comparison
 * [ ] Strategy optimization
-* [ ] Risk vs return visualization
-* [ ] Drawdown analytics
+* [ ] Richer risk vs return views (beyond current equity + drawdown charts)
+* [ ] Deeper drawdown analytics
 
 ---
 
-## 6. API Design
+## 6. API design
 
 ---
 
-### Current
+### Current (`POST /run`)
 
 ```json
 {
@@ -294,7 +274,9 @@ The system should prioritize:
 
 ---
 
-### Future (Target)
+### Future (target)
+
+Structured strategy list and run options (fees, slippage, enabled ids), for example:
 
 ```json
 {
@@ -309,40 +291,16 @@ The system should prioritize:
 
 ---
 
-## 7. Immediate Next Steps (Prioritized)
+## 7. Immediate next steps (prioritized for Phase 2.5)
+
+1. **Engine realism:** next-bar execution, fees, slippage — with tests and a small, explicit fill API inside the engine.
+2. **Phase 2 gaps (when useful):** interval in UI; optional strategy toggles on the request body.
+3. **Strategy evolution:** hybrid MA + RSI (after execution model is stable so results are comparable).
+4. **API evolution:** structured `strategies` array and run metadata; align UI “best” highlight with chosen rank key (return vs score) if product wants consistency.
 
 ---
 
-### 🔥 1. Engine Realism (Highest Priority)
-
-* Add fees
-* Implement next-candle execution
-* Add slippage
-
----
-
-### 🧠 2. Strategy Evolution
-
-* Build hybrid strategy (MA + RSI)
-
----
-
-### 🧩 3. API Evolution
-
-* Strategy enable/disable
-* Move toward structured config
-
----
-
-### 🎛 4. UI Improvements
-
-* Strategy toggles
-* Parameter presets
-* Better chart controls
-
----
-
-## 8. Key Insights
+## 8. Key insights
 
 * Profit alone is misleading
 * Drawdown defines survivability
@@ -352,12 +310,12 @@ The system should prioritize:
 
 ---
 
-## 9. Success Criteria
+## 9. Success criteria
 
 A user can:
 
 * select dataset
-* configure strategies
+* configure strategy parameters (MA / RSI today)
 * run backtest
 * understand results visually
 

@@ -1,3 +1,6 @@
+//! Bar-by-bar accumulator for trade counts, win rate, and **scalar** peak drawdown stats.
+//! Pure analytics on a finished equity curve (Sharpe, drawdown *series*) live in [`crate::equity_curve`].
+
 pub struct Metrics {
     trades: u32,
     wins: u32,

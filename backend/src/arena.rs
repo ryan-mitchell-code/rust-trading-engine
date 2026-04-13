@@ -2,7 +2,7 @@
 
 use crate::config::RunConfig;
 use crate::csv;
-use crate::engine::{market_series, run, BacktestResult, BacktestRun};
+use crate::engine::{market_series, run, BacktestParams, BacktestResult, BacktestRun};
 use crate::models::Candle;
 use crate::strategy::{BuyAndHold, MovingAverage, RandomStrategy, RsiStrategy};
 
@@ -73,6 +73,7 @@ fn apply_scoring(backtests: &mut [BacktestResult]) {
 /// Run the default strategy set on `candles`, write per-strategy CSVs, apply vs–buy-and-hold deltas and arena scoring, then sort by score (highest first).
 pub fn run_arena(candles: &[Candle], verbose: bool, config: &RunConfig) -> BacktestRun {
     let market = market_series(candles);
+    let backtest_params = BacktestParams::default();
 
     let ma_short = config.ma_short;
     let ma_long = config.ma_long;
@@ -82,6 +83,7 @@ pub fn run_arena(candles: &[Candle], verbose: bool, config: &RunConfig) -> Backt
             candles,
             MovingAverage::new(ma_short, ma_long),
             &moving_average_name,
+            &backtest_params,
             verbose,
         ),
         run(
@@ -92,10 +94,23 @@ pub fn run_arena(candles: &[Candle], verbose: bool, config: &RunConfig) -> Backt
                 config.rsi_oversold,
             ),
             RSI_NAME,
+            &backtest_params,
             verbose,
         ),
-        run(candles, RandomStrategy::new(), RANDOM_NAME, verbose),
-        run(candles, BuyAndHold::new(), BUY_AND_HOLD_NAME, verbose),
+        run(
+            candles,
+            RandomStrategy::new(),
+            RANDOM_NAME,
+            &backtest_params,
+            verbose,
+        ),
+        run(
+            candles,
+            BuyAndHold::new(),
+            BUY_AND_HOLD_NAME,
+            &backtest_params,
+            verbose,
+        ),
     ];
 
     for bt in &backtests {

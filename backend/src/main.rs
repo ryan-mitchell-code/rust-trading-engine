@@ -4,6 +4,7 @@ mod config;
 mod csv;
 mod data;
 mod engine;
+mod equity_curve;
 mod metrics;
 mod models;
 mod paths;

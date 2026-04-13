@@ -1,101 +1,42 @@
+use crate::equity_curve::{drawdown_curve_from_equity, sharpe_ratio_from_equity_curve};
 use crate::metrics::Metrics;
 use crate::models::{Candle, Signal};
 use crate::paths;
 use crate::strategy::Strategy;
 use serde::Serialize;
 
-const INITIAL_CAPITAL: f64 = 10_000.0;
-const POSITION_FRACTION: f64 = 0.10;
+/// Capital, sizing, and (later) execution costs for a backtest run.
+#[derive(Debug, Clone, Copy)]
+pub struct BacktestParams {
+    pub initial_capital: f64,
+    /// Fraction of **current** cash allocated on each buy (e.g. `0.10` → 10%).
+    pub position_fraction: f64,
+}
 
-/// Open position: `(entry_price per unit, size in units, cash allocated at entry)`.
-type Position = (f64, f64, f64);
+impl Default for BacktestParams {
+    fn default() -> Self {
+        Self {
+            initial_capital: 10_000.0,
+            position_fraction: 0.10,
+        }
+    }
+}
 
-fn calculate_capital(cash: f64, position: &Option<Position>, mark_price: f64) -> f64 {
-    let held = position.as_ref().map(|(_, size, _)| *size).unwrap_or(0.0);
+/// Open position: fill price per unit, size in units, cash paid at entry.
+#[derive(Debug, Clone, Copy)]
+struct OpenPosition {
+    entry_price: f64,
+    size: f64,
+    allocation: f64,
+}
+
+fn calculate_capital(cash: f64, position: &Option<OpenPosition>, mark_price: f64) -> f64 {
+    let held = position.as_ref().map(|p| p.size).unwrap_or(0.0);
     cash + held * mark_price
 }
 
 fn realized_pnl(size: f64, exit_price: f64, allocation: f64) -> f64 {
     size * exit_price - allocation
-}
-
-/// Per-period (sample) Sharpe ratio from an equity curve — **timeframe-agnostic**.
-///
-/// For each consecutive pair of equity values, computes simple return  
-/// `(E_t - E_{t-1}) / E_{t-1}`, then returns `mean(returns) / sample_std_dev(returns)`
-/// (sample variance uses `n - 1` in the denominator).
-///
-/// **Semantics**
-///
-/// - This is a **per-period** Sharpe: the period is whatever spacing the curve has (bars,
-///   ticks, etc.). It does **not** assume daily, hourly, or any fixed calendar.
-/// - It is **not annualized**. Converting to an annualized Sharpe requires explicit
-///   assumptions (e.g. periods per year) and should be done outside this function.
-/// - Raw values are **not directly comparable** across backtests that use different bar
-///   spacing unless you normalize or annualize consistently.
-///
-/// Returns `0.0` when there are fewer than two returns, or when sample std dev is negligible.
-/// Steps where the prior equity is non-positive or non-finite are skipped (avoids divide-by-zero and `inf`).
-fn sharpe_ratio_from_equity_curve(equity_curve: &[f64]) -> f64 {
-    if equity_curve.len() < 2 {
-        return 0.0;
-    }
-
-    let mut returns: Vec<f64> = Vec::with_capacity(equity_curve.len() - 1);
-
-    for w in equity_curve.windows(2) {
-        let prev = w[0];
-        let curr = w[1];
-
-        if prev <= 0.0 || !prev.is_finite() || !curr.is_finite() {
-            continue;
-        }
-        let step = (curr - prev) / prev;
-        if step.is_finite() {
-            returns.push(step);
-        }
-    }
-
-    let n = returns.len();
-    if n < 2 {
-        return 0.0;
-    }
-
-    let mean = returns.iter().sum::<f64>() / n as f64;
-
-    let variance = returns
-        .iter()
-        .map(|r| (r - mean).powi(2))
-        .sum::<f64>()
-        / (n as f64 - 1.0);
-
-    let std_dev = variance.sqrt();
-
-    if std_dev <= f64::EPSILON {
-        0.0
-    } else {
-        mean / std_dev
-    }
-}
-
-/// Per-timestep drawdown vs running peak: `(equity - peak) / peak` (0 at new highs, negative underwater).
-/// Same length as `equity_curve`; bar times are in [`BacktestRun.market`].
-fn drawdown_curve_from_equity(equity_curve: &[f64]) -> Vec<f64> {
-    if equity_curve.is_empty() {
-        return Vec::new();
-    }
-    let mut peak = equity_curve[0];
-    let mut out = Vec::with_capacity(equity_curve.len());
-    for &eq in equity_curve {
-        peak = peak.max(eq);
-        let drawdown = if peak.abs() > f64::EPSILON {
-            (eq - peak) / peak
-        } else {
-            0.0
-        };
-        out.push(drawdown);
-    }
-    out
 }
 
 /// Bar timestamps and OHLC for the run (one row per candle).
@@ -128,7 +69,7 @@ pub struct ResultSummary {
     pub return_pct: f64,
     pub relative_return: f64,
     pub drawdown_pct: f64,
-    /// Per-period Sharpe from the equity curve (`mean / sample std dev` of step returns); not annualized. See [`sharpe_ratio_from_equity_curve`].
+    /// Per-period Sharpe from the equity curve (`mean / sample std dev` of step returns); not annualized. See [`crate::equity_curve::sharpe_ratio_from_equity_curve`].
     pub sharpe_ratio: f64,
     pub score_sharpe_component: f64,
     pub score_return_component: f64,
@@ -195,13 +136,15 @@ pub fn run<S: Strategy>(
     data: &[Candle],
     mut strategy: S,
     strategy_name: &str,
+    params: &BacktestParams,
     verbose: bool,
 ) -> BacktestResult {
-    let mut cash = INITIAL_CAPITAL;
-    let mut position: Option<Position> = None;
+    let initial = params.initial_capital;
+    let mut cash = initial;
+    let mut position: Option<OpenPosition> = None;
     let mut open_trade_id: Option<u32> = None;
     let mut next_trade_id: u32 = 1;
-    let mut metrics = Metrics::new(INITIAL_CAPITAL);
+    let mut metrics = Metrics::new(initial);
     let mut trade_rows: Vec<Vec<String>> = Vec::new();
     let mut equity_curve: Vec<f64> = Vec::with_capacity(data.len());
 
@@ -214,7 +157,7 @@ pub fn run<S: Strategy>(
         match signal {
             Signal::Buy => {
                 if position.is_none() {
-                    let allocation = cash * POSITION_FRACTION;
+                    let allocation = cash * params.position_fraction;
 
                     if allocation > f64::EPSILON {
                         let trade_id = next_trade_id;
@@ -223,14 +166,23 @@ pub fn run<S: Strategy>(
 
                         let size = allocation / candle.close;
                         cash -= allocation;
-                        position = Some((candle.close, size, allocation));
+                        position = Some(OpenPosition {
+                            entry_price: candle.close,
+                            size,
+                            allocation,
+                        });
 
                         buy_log = Some((trade_id, candle.timestamp.clone(), candle.close));
                     }
                 }
             }
             Signal::Sell => {
-                if let Some((_, size, allocation)) = position.take() {
+                if let Some(OpenPosition {
+                    size,
+                    allocation,
+                    ..
+                }) = position.take()
+                {
                     let exit_price = candle.close;
                     let proceeds = size * exit_price;
                     let pnl = realized_pnl(size, exit_price, allocation);
@@ -289,7 +241,12 @@ pub fn run<S: Strategy>(
         equity_curve.push(capital);
     }
 
-    if let Some((_, size, allocation)) = position.take() {
+    if let Some(OpenPosition {
+        size,
+        allocation,
+        ..
+    }) = position.take()
+    {
         let last = data.last().expect("data not empty");
         let exit_price = last.close;
         let proceeds = size * exit_price;
@@ -331,7 +288,7 @@ pub fn run<S: Strategy>(
     let sharpe_ratio = sharpe_ratio_from_equity_curve(&equity_curve);
     let drawdown_curve = drawdown_curve_from_equity(&equity_curve);
     let max_drawdown = metrics.max_drawdown();
-    let return_pct = (final_capital - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
+    let return_pct = (final_capital - initial) / initial * 100.0;
     let drawdown_pct = max_drawdown * 100.0;
 
     let safe_name = strategy_name.replace(['/', '\\'], "_");
@@ -388,7 +345,11 @@ mod tests {
 
     #[test]
     fn calculate_capital_mark_to_market() {
-        let position = Some((100.0, 2.0, 200.0));
+        let position = Some(OpenPosition {
+            entry_price: 100.0,
+            size: 2.0,
+            allocation: 200.0,
+        });
         // cash 8_000 + 2 units * mark 110 = 8_220
         assert_close(calculate_capital(8_000.0, &position, 110.0), 8_220.0);
     }
@@ -410,58 +371,28 @@ mod tests {
         assert_close(realized_pnl(5.0, 40.0, 200.0), 0.0);
     }
 
-    #[test]
-    fn sharpe_ratio_flat_equity_is_zero() {
-        let curve = vec![10_000.0, 10_000.0, 10_000.0];
-        assert_close(sharpe_ratio_from_equity_curve(&curve), 0.0);
-    }
-
-    #[test]
-    fn drawdown_curve_empty_is_empty() {
-        assert!(drawdown_curve_from_equity(&[]).is_empty());
-    }
-
-    #[test]
-    fn drawdown_curve_peaks_zero_underwater_negative() {
-        let equity = vec![10_000.0, 11_000.0, 9_900.0, 12_000.0];
-        let dd = drawdown_curve_from_equity(&equity);
-        assert_close(dd[0], 0.0);
-        assert_close(dd[1], 0.0);
-        assert_close(dd[2], (9_900.0 - 11_000.0) / 11_000.0);
-        assert_close(dd[3], 0.0);
-    }
-
-    #[test]
-    fn sharpe_ratio_two_varying_returns() {
-        // returns ≈ 1% and -0.5% → mean ≈ 0.25%, sample std > 0 → finite ratio
-        let curve = vec![10_000.0, 10_100.0, 10_049.5];
-        let s = sharpe_ratio_from_equity_curve(&curve);
-        assert!(s.is_finite() && s > 0.0);
-    }
-
-    #[test]
-    fn sharpe_ratio_skips_non_positive_prior_equity() {
-        let curve = vec![0.0, 10_000.0, 10_100.0];
-        assert_close(sharpe_ratio_from_equity_curve(&curve), 0.0);
-    }
-
     /// One round-trip: open with 10% of cash, close at a higher price; no engine/strategy/IO.
     #[test]
     fn trade_lifecycle_buy_then_sell() {
-        let mut cash = 10_000.0;
+        let params = BacktestParams::default();
+        let mut cash = params.initial_capital;
         let entry_price = 2_000.0;
-        let allocation = cash * POSITION_FRACTION;
+        let allocation = cash * params.position_fraction;
         let size = allocation / entry_price;
         cash -= allocation;
-        let mut position: Option<Position> = Some((entry_price, size, allocation));
+        let mut position: Option<OpenPosition> = Some(OpenPosition {
+            entry_price,
+            size,
+            allocation,
+        });
 
         assert_close(calculate_capital(cash, &position, entry_price), 10_000.0);
 
         let exit_price = 2_200.0;
         let (sz, alloc) = match position.take() {
-            Some((ep, s, a)) => {
-                assert_close(ep, entry_price);
-                (s, a)
+            Some(p) => {
+                assert_close(p.entry_price, entry_price);
+                (p.size, p.allocation)
             }
             None => panic!("expected open position"),
         };

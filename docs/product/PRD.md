@@ -215,7 +215,7 @@ Arena runs a **fixed set** of four strategies every request (not yet selectable 
 #### Execution
 
 * [x] Execute entries/exits on **next bar’s open** (deferred signal from prior bar), not the signal bar’s close
-* [x] Document and test bar indexing so signal and fill cannot use future OHLC (see `engine.rs` tests: next-bar timing, final-bar drop, forced close)
+* [x] Document and test bar indexing so signal and fill cannot use future OHLC (see `engine` module tests: next-bar timing, final-bar drop, forced close)
 
 #### Frictions
 

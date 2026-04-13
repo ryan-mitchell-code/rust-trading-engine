@@ -117,7 +117,7 @@ One full **buy then sell** (or forced exit). **Win rate** and **average PnL** co
 
 ### OpenPosition (code)
 
-Rust struct in `engine.rs`: **entry price**, **size**, **allocation** (cash allocated to the position at entry), and **`buy_fee`** paid at entry. Keeps state explicit for fee-aware exits and logging.
+Rust struct in `engine/mod.rs`: **entry price**, **size**, **allocation** (cash allocated to the position at entry), and **`buy_fee`** paid at entry. Keeps state explicit for fee-aware exits and logging.
 
 ---
 
@@ -253,7 +253,7 @@ After all strategies finish, the backend **normalizes** Sharpe, return, and draw
 | Piece | Role |
 |--------|------|
 | **`strategy/`** | Each strategy implements **`Strategy`** and emits **`Signal`**. |
-| **`engine.rs`** | Walks candles, applies **execution** rules, tracks **cash/position**, builds **equity curve** and **trades**. |
+| **`engine/`** | `mod.rs`: backtest loop; **`execution.rs`**: deferred fills. Tracks **cash/position**, **equity curve**, **trades**. |
 | **`metrics.rs`** | **Incremental** stats while stepping (trades, peak drawdown, duration streaks). |
 | **`equity_curve.rs`** | **Pure math** on finished equity: **Sharpe**, **drawdown series**. |
 | **`arena.rs`** | Runs **all** default strategies, CSV export, **relative return**, **scoring**, **sort**. |
@@ -276,7 +276,7 @@ Alphabetical **reminders**; full intuition is in the sections above.
 | **Arena** | Runs every default strategy on the same data; scores and sorts. |
 | **Ask / bid** | Best sell / buy prices; **spread** is ask − bid. |
 | **Backtest** | Simulate rules on historical bars. |
-| **BacktestParams** | Engine: initial capital, position fraction, **`fee_rate`** (`engine.rs`). |
+| **BacktestParams** | Engine: initial capital, position fraction, **`fee_rate`** (`engine/mod.rs`). |
 | **BacktestRun** | API JSON: `market` + per-strategy `results`. |
 | **Bar / candle** | One interval of OHLC (+ volume elsewhere). |
 | **Benchmark** | Here: **buy and hold** for comparison. |

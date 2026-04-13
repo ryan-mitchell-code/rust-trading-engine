@@ -1,5 +1,5 @@
 /**
- * Mirrors `backend/src/engine.rs` as serialized by `serde_json`.
+ * Mirrors `backend/src/engine` (`BacktestResult` / `BacktestRun`) as serialized by `serde_json`.
  * If the UI drifts from real output, fix the Rust types / serialization — not ad-hoc mapping here.
  */
 

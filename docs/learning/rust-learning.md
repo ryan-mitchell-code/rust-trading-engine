@@ -138,7 +138,7 @@ Rust makes that state explicit in structs and `Option` fields, which matches how
 
 ## 4. Backtesting engine patterns
 
-The following applies to `src/engine.rs`. Earlier sections cover `Option` in general (e.g. moving-average history); here the **engine** applies the same ideas to **positions**, **cash**, and **outputs**.
+The following applies to `src/engine/` (orchestration in `mod.rs`, fill logic in `execution.rs`). Earlier sections cover `Option` in general (e.g. moving-average history); here the **engine** applies the same ideas to **positions**, **cash**, and **outputs**.
 
 ### `Option` for open positions
 
@@ -168,7 +168,7 @@ The following applies to `src/engine.rs`. Earlier sections cover `Option` in gen
 
 **What:** Keep the **cash allocated** to the trade and the **entry fee** on **`OpenPosition`** (along with `entry_price` and `size`).
 
-**How:** Set `allocation` and `buy_fee` at buy. On exit, PnL uses **net sell proceeds** minus **`allocation`** minus **`buy_fee`** (see `engine.rs`), so fees stay consistent in metrics and trade rows.
+**How:** Set `allocation` and `buy_fee` at buy. On exit, PnL uses **net sell proceeds** minus **`allocation`** minus **`buy_fee`** (see `engine/execution.rs`), so fees stay consistent in metrics and trade rows.
 
 **Why:** One source of truth for capital at risk and entry costs keeps PnL, logs, and CSV exports aligned when **`fee_rate`** is non-zero.
 

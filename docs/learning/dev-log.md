@@ -397,7 +397,7 @@ and ensuring that:
 
 ### What shipped
 
-* **Engine** (`backend/src/engine.rs`): **`PendingSignal`** queue; fills at **next bar open** via **`execute_signal`**; **`fee_rate`** on buy and sell with fee-aware realized PnL; **forced close** at last bar **close**; explicit **drop** of the final bar’s pending signal (verbose log); regression tests (timing, last bar, flat-price fees).
+* **Engine** (`backend/src/engine/`, orchestration in `mod.rs`, fills in `execution.rs`): **`PendingSignal`** queue; fills at **next bar open** via **`execute_signal`**; **`fee_rate`** on buy and sell with fee-aware realized PnL; **forced close** at last bar **close**; explicit **drop** of the final bar’s pending signal (verbose log); regression tests (timing, last bar, flat-price fees).
 * **Docs:** `PRD.md`, `trading-handbook.md`, this log, and `rust-learning.md` updated so “source of truth” matches shipped behavior.
 
 ### What I learned

@@ -1,3 +1,7 @@
+mod execution;
+
+use execution::{execute_signal, signal_verb};
+
 use crate::equity_curve::{drawdown_curve_from_equity, sharpe_ratio_from_equity_curve};
 use crate::metrics::Metrics;
 use crate::models::{Candle, Signal};
@@ -27,7 +31,7 @@ impl Default for BacktestParams {
 
 /// Open position: fill price per unit, size in units, cash allocated to the position, and entry fee paid.
 #[derive(Debug, Clone, Copy)]
-struct OpenPosition {
+pub(crate) struct OpenPosition {
     entry_price: f64,
     size: f64,
     allocation: f64,
@@ -47,14 +51,6 @@ impl PendingSignal {
             signal,
             timestamp: candle.timestamp.clone(),
         }
-    }
-}
-
-fn signal_verb(signal: &Signal) -> &'static str {
-    match signal {
-        Signal::Buy => "BUY",
-        Signal::Sell => "SELL",
-        Signal::Hold => "HOLD",
     }
 }
 
@@ -158,81 +154,6 @@ fn make_trade_row(
         format!("{:.2}", pnl),
         format!("{:.2}", capital),
     ]
-}
-
-/// Apply a **deferred** signal at `fill_price` (e.g. current bar **open**). Log rows use `trade_timestamp`.
-fn execute_signal(
-    signal: Signal,
-    fill_price: f64,
-    trade_timestamp: &str,
-    cash: &mut f64,
-    position: &mut Option<OpenPosition>,
-    open_trade_id: &mut Option<u32>,
-    next_trade_id: &mut u32,
-    metrics: &mut Metrics,
-    params: &BacktestParams,
-) -> (
-    Option<(u32, String, f64)>,
-    Option<(u32, String, f64, f64)>,
-) {
-    let mut buy_log: Option<(u32, String, f64)> = None;
-    let mut sell_log: Option<(u32, String, f64, f64)> = None;
-
-    match signal {
-        Signal::Buy => {
-            if position.is_none() {
-                let allocation = *cash * params.position_fraction;
-
-                if allocation > f64::EPSILON {
-                    let buy_fee = allocation * params.fee_rate;
-                    let cash_out = allocation + buy_fee;
-                    if *cash + f64::EPSILON >= cash_out {
-                        let trade_id = *next_trade_id;
-                        *next_trade_id += 1;
-                        *open_trade_id = Some(trade_id);
-
-                        let size = allocation / fill_price;
-                        *cash -= cash_out;
-                        *position = Some(OpenPosition {
-                            entry_price: fill_price,
-                            size,
-                            allocation,
-                            buy_fee,
-                        });
-
-                        buy_log = Some((trade_id, trade_timestamp.to_string(), fill_price));
-                    }
-                }
-            }
-        }
-        Signal::Sell => {
-            if let Some(OpenPosition {
-                size,
-                allocation,
-                buy_fee,
-                ..
-            }) = position.take()
-            {
-                let exit_price = fill_price;
-                let proceeds = size * exit_price;
-                let sell_fee = proceeds * params.fee_rate;
-                let net_proceeds = proceeds - sell_fee;
-                let pnl = net_proceeds - allocation - buy_fee;
-
-                *cash += net_proceeds;
-                metrics.record_trade(pnl);
-
-                let trade_id = open_trade_id
-                    .take()
-                    .expect("sell should follow a logged buy");
-
-                sell_log = Some((trade_id, trade_timestamp.to_string(), exit_price, pnl));
-            }
-        }
-        Signal::Hold => {}
-    }
-
-    (buy_log, sell_log)
 }
 
 pub fn run<S: Strategy>(

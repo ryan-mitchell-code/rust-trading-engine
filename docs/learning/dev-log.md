@@ -353,10 +353,10 @@ and ensuring that:
 
 ### What I built
 
-* **PRD** (`docs/product/PRD.md`): realigned with the codebase—current execution model (same-bar close), fixed arena strategy set, metrics (including composite score and drawdown series), API vs UI gaps (e.g. interval hardcoded in UI), and **Phase 2.5** framed as next-bar execution, fees, slippage, and a single fill path with tests.
+* **PRD** (`docs/product/PRD.md`): realigned with the codebase **at the time**—execution was still same-bar close; fixed arena strategy set, metrics (including composite score and drawdown series), API vs UI gaps (e.g. interval hardcoded in UI), and **Phase 2.5** framed as next-bar execution, fees, slippage, and a single fill path with tests.
 * **Backend refactor** (BacktestParams, OpenPosition, `equity_curve` module—see git log on `main`):
 
-  * `BacktestParams` for initial capital and position fraction (shared across arena runs; room for future costs).
+  * `BacktestParams` for initial capital and position fraction (shared across arena runs); **`fee_rate`** landed in a later change (Day 6).
   * `OpenPosition` struct instead of a tuple for entry, size, and allocation.
   * New `equity_curve` module: Sharpe and per-bar drawdown **series** as pure functions on a finished curve; `metrics.rs` stays the **incremental** bar-by-bar accumulator—documented so responsibilities stay clear.
 * **Trading handbook** (`docs/reference/trading-handbook.md`): from-scratch narrative (markets → bars → spot/PnL → strategies → honest backtesting → metrics → repo map) plus **section 8** quick reference. Renamed from “glossary” so the name matches the learning goal.
@@ -374,7 +374,7 @@ and ensuring that:
 ### What I learned (Rust / design)
 
 * Named structs for position state reduce tuple-index mistakes before execution logic gets richer (pending orders, next-bar fills).
-* Centralizing run parameters in one type makes the next features (fees, slippage) a smaller conceptual jump.
+* Centralizing run parameters in one type made adding **`fee_rate`** and keeps **slippage** as the next incremental step.
 
 ---
 
@@ -385,8 +385,33 @@ and ensuring that:
 
 ---
 
-### Next steps
+### Next steps (as of Day 5)
 
 * Implement Phase 2.5 execution (next-bar open, fees, slippage) with regression tests on small candle fixtures.
 * Wire **interval** (and later strategy toggles) through the UI to match `POST /run`.
 * Keep extending the trading handbook as execution and portfolio features land.
+
+---
+
+## Day 6 — Deferred execution, fees, docs aligned with engine
+
+### What shipped
+
+* **Engine** (`backend/src/engine.rs`): **`PendingSignal`** queue; fills at **next bar open** via **`execute_signal`**; **`fee_rate`** on buy and sell with fee-aware realized PnL; **forced close** at last bar **close**; explicit **drop** of the final bar’s pending signal (verbose log); regression tests (timing, last bar, flat-price fees).
+* **Docs:** `PRD.md`, `trading-handbook.md`, this log, and `rust-learning.md` updated so “source of truth” matches shipped behavior.
+
+### What I learned
+
+* Documenting **last-bar** semantics (fill at final open vs signal-only on last bar) avoids subtle “why didn’t this trade?” confusion.
+* A **flat-price** fee test is a compact sanity check that PnL math and CSV trade rows stay consistent.
+
+### Next questions
+
+* How do strategy **rankings** change under **`fee_rate`** matching Binance spot vs zero fees?
+* What **slippage** default (bps or ticks) is enough for documentation without overfitting?
+
+### Next steps
+
+* **Slippage** model and tests; optional **`fee_rate`** (and slippage) on **`POST /run`**.
+* Wire **interval** and strategy toggles when ready.
+* Revisit hybrid MA + RSI once slippage/API knobs are clear.

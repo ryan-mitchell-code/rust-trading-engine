@@ -42,7 +42,7 @@ Each **bar** (candle) summarizes one time window (e.g. one day):
 | **Low** | Lowest price in the window |
 | **Close** | Last price in the window (very often used for “where did we end up?”) |
 
-The **wick** (thin line) spans low–high; the **body** spans open–close. Color shows whether close was above or below open. You do not need chart artistry to use this project: the **engine** mostly cares about **close** for valuation today; the **UI** draws full OHLC for context.
+The **wick** (thin line) spans low–high; the **body** spans open–close. Color shows whether close was above or below open. You do not need chart artistry to use this project: the **engine** uses each bar’s **close** for **mark-to-market** equity, and each bar’s **open** for **deferred fills** (see section 5); the **UI** draws full OHLC for context.
 
 ### Why four prices matter
 
@@ -98,7 +98,7 @@ Revalue the open position every bar using a **mark price** (here: bar **close**)
 
 - **Buy signal** only **opens** if you are **flat** (one position at a time).
 - **Sell signal** only **closes** if you are **long**.
-- If the last bar passes and you are still long, the engine **forces a final sell** so the run ends flat for accounting.
+- **Signals are deferred** to the **next bar’s open** (see section 5). A signal emitted **only** on the **last** bar is **not** executed (no later open). If you are still **long** after the last bar, the engine **force-closes** at the **last close** so the run ends flat for accounting.
 
 ### Allocation and position fraction
 
@@ -106,10 +106,10 @@ On each buy, the engine spends a **fraction of current cash** (default **10%** v
 
 ### Realized PnL
 
-When you **sell**, profit or loss **locks in**:
+When you **sell**, profit or loss **locks in** after **fees** (when `fee_rate` > 0):
 
-`pnl = proceeds - cash_you_put_in`  
-with `proceeds = size × exit_price` in the current simple model.
+`pnl = net_proceeds - allocation - buy_fee`  
+where **`allocation`** is cash allocated at entry, **`buy_fee`** is entry notional × `fee_rate`, **`net_proceeds`** is `size × exit_price` minus sell fee on proceeds. With **`fee_rate = 0`**, that reduces to `size × exit_price - allocation`.
 
 ### Round trip
 
@@ -117,7 +117,7 @@ One full **buy then sell** (or forced exit). **Win rate** and **average PnL** co
 
 ### OpenPosition (code)
 
-Rust struct in `engine.rs`: **entry price**, **size**, **allocation** (cash spent at entry). Keeps state explicit for exits and logging.
+Rust struct in `engine.rs`: **entry price**, **size**, **allocation** (cash allocated to the position at entry), and **`buy_fee`** paid at entry. Keeps state explicit for fee-aware exits and logging.
 
 ---
 
@@ -129,7 +129,7 @@ A **rule set** that, each bar, outputs **Buy**, **Sell**, or **Hold**. In code, 
 
 ### Signal vs execution (important)
 
-A **signal** is **intent** (“I want to buy”). **Execution** is **what actually happens**: which **price**, which **moment**, **fees**, **slippage**. This project is moving toward **clearer** separation so backtests stay honest (see section 5).
+A **signal** is **intent** (“I want to buy”). **Execution** is **what actually happens**: which **price**, which **moment**, **fees**, **slippage**. Strategies only emit signals; the **engine** applies **deferred fills** at the next bar’s **open** and **fees** on the fill path (see section 5).
 
 ### Indicator
 
@@ -178,21 +178,21 @@ Each API run executes a **fixed set** of strategies on the **same** bars: moving
 
 Tiny changes (fill price, fees, slippage) swing results. A model that fills at the **best** possible price inside each bar often **flatters** the strategy.
 
-### Same-bar execution (current engine)
+### Same-bar execution (not this engine)
 
-Signal and fill both use the **current bar’s close**. That implies you **knew** the close when you decided—usually **false** in real life unless you trade **after** the bar closes. That is a form of **lookahead bias** and tends to **inflate** backtest results.
+Signal and fill both use the **same bar’s close**. That implies you **knew** the close when you decided—usually **false** unless you trade **after** the bar closes. That **lookahead** tends to **inflate** backtests; this repo **does not** use that model anymore.
 
-### Next-bar execution (roadmap)
+### Deferred / next-bar open execution (current engine)
 
-Decide on bar *t*, fill on bar *t+1* (often at **open**). Stricter and usually **worse** returns, but more **credible** for “end of day” style rules.
+On each bar the strategy outputs a signal from **completed** OHLC for that bar. The engine **does not** fill on that signal immediately at the close. Instead it **queues** the signal and, starting on the **next** bar, applies the **previous** bar’s signal at the **current** bar’s **open** price. On the **last** bar there is no “next” open for a signal emitted **after** the final close pass—so that final pending signal is **dropped** (optional verbose log); any open position is still **closed** at the **last bar’s close**. This matches “decide on *t*, fill at *t+1* open” for interior bars, and keeps strategies from peeking at the signal bar’s close for the fill price.
 
 ### Lookahead bias (general)
 
-Using **future** information at a **past** decision time. Besides same-bar close, other examples elsewhere in finance: **survivorship bias** (only stocks that still exist), **data snooping** (tuning on the same data you test). Stay skeptical of **too-perfect** curves.
+Using **future** information at a **past** decision time. Other examples elsewhere in finance: **survivorship bias** (only stocks that still exist), **data snooping** (tuning on the same data you test). Stay skeptical of **too-perfect** curves.
 
 ### Fees and commission
 
-A **percent** or fixed cost per trade. They **compound** against you and should live in the **fill path** so every strategy pays the same rules.
+A **percent** or fixed cost per trade. They **compound** against you. Here, **`BacktestParams.fee_rate`** is a fraction of notional per **side** (buy on allocation, sell on proceeds). **`fee_rate = 0`** is the default for arena / API runs unless you change it in code.
 
 ### Slippage
 
@@ -200,7 +200,7 @@ You hoped for price *X*, got *Y* (worse). Modeled simply as bps off mid/close in
 
 ### Bid, ask, spread
 
-**Bid:** best buy order. **Ask:** best sell order. **Spread:** gap between them. Filling at **close** ignores spread; more realistic models often **pay** half-spread or worse on market orders.
+**Bid:** best buy order. **Ask:** best sell order. **Spread:** gap between them. Filling at bar **open** for market-style assumptions still **ignores** intrabar spread; richer models can **pay** half-spread or worse.
 
 ---
 
@@ -261,7 +261,7 @@ After all strategies finish, the backend **normalizes** Sharpe, return, and draw
 | **UI** | Charts, tables, **focus** one strategy, parameters for MA/RSI. |
 
 **`RunConfig`:** MA + RSI parameters from the API.  
-**`BacktestParams`:** starting capital and position fraction (and later fees/slippage).  
+**`BacktestParams`:** starting capital, position fraction, **`fee_rate`** (per-side fraction; default **0** in arena), room for future slippage fields.  
 **`BacktestRun`:** one shared **`market`** array plus **`results`** per strategy.
 
 ---
@@ -276,7 +276,7 @@ Alphabetical **reminders**; full intuition is in the sections above.
 | **Arena** | Runs every default strategy on the same data; scores and sorts. |
 | **Ask / bid** | Best sell / buy prices; **spread** is ask − bid. |
 | **Backtest** | Simulate rules on historical bars. |
-| **BacktestParams** | Engine: initial capital, position fraction (`engine.rs`). |
+| **BacktestParams** | Engine: initial capital, position fraction, **`fee_rate`** (`engine.rs`). |
 | **BacktestRun** | API JSON: `market` + per-strategy `results`. |
 | **Bar / candle** | One interval of OHLC (+ volume elsewhere). |
 | **Benchmark** | Here: **buy and hold** for comparison. |
@@ -286,7 +286,7 @@ Alphabetical **reminders**; full intuition is in the sections above.
 | **Equity** | Cash + marked position value. |
 | **Equity curve** | Equity each bar. |
 | **Execution** | Turning signals into fills (price, time, costs). |
-| **Fee** | Trading cost as % or fixed. |
+| **Fee** | Here: **`fee_rate`** × notional per **side** (buy and sell) in the engine. |
 | **Flat** | No open position. |
 | **Interval** | Bar size (1d, 4h, …). |
 | **Indicator** | Derived from prices (MA, RSI, …). |
@@ -296,15 +296,15 @@ Alphabetical **reminders**; full intuition is in the sections above.
 | **Mark-to-market** | Revalue open position each bar. |
 | **Mean reversion** | Buy dips, sell rips (RSI-style). |
 | **Moving average** | Rolling average of closes. |
-| **Next-bar execution** | Signal bar *t*, fill bar *t+1* (stricter). |
+| **Next-bar / deferred fill** | Signal on bar *t*; fill at bar *t+1* **open** (engine default). Last-bar-only signal: **not** filled. |
 | **OHLC** | Open, high, low, close. |
-| **Open position** | Long position with entry, size, allocation. |
+| **Open position** | In code: **`OpenPosition`** — entry, size, allocation, **buy_fee**. |
 | **PnL** | Profit/loss; **realized** on sell. |
 | **Position fraction** | Fraction of **cash** used per buy. |
 | **Relative return** | Strategy return % − buy-and-hold return %. |
 | **RSI** | Oscillator for overbought/oversold-style rules. |
 | **RunConfig** | API MA/RSI parameters (`config.rs`). |
-| **Same-bar execution** | Signal and fill on same bar’s close (optimistic). |
+| **Same-bar execution** | Signal and fill on same bar’s close (lookahead-prone); **not** used in this engine. |
 | **Sharpe (here)** | Mean bar return / std on equity curve; not annualized. |
 | **Signal** | Buy / Sell / Hold from a strategy. |
 | **Slippage** | Fill worse than expected. |

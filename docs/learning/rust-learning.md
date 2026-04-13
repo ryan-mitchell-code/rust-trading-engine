@@ -142,9 +142,9 @@ The following applies to `src/engine.rs`. Earlier sections cover `Option` in gen
 
 ### `Option` for open positions
 
-**What:** `position: Option<Position>` is either flat (`None`) or in a trade (`Some(...)`).
+**What:** `position: Option<OpenPosition>` is either flat (`None`) or in a trade (`Some(...)`).
 
-**How:** Starts as `None`. A fill sets `position = Some((entry_price, size, allocation))`. Buys use `position.is_none()`; after a sell the slot is cleared (see `take()` below).
+**How:** Starts as `None`. A fill sets `position = Some(OpenPosition { entry_price, size, allocation, buy_fee })`. Buys use `position.is_none()`; after a sell the slot is cleared (see `take()` below).
 
 **Why:** Avoids sentinel values (e.g. `size == 0.0`) and matches the mental model: you either hold something or you do not.
 
@@ -152,7 +152,7 @@ The following applies to `src/engine.rs`. Earlier sections cover `Option` in gen
 
 **What:** Moves `Some(x)` out, returns `x`, and sets the option to `None` in one step.
 
-**How:** On a sell, `position.take()` yields the tuple and clears the position. `open_trade_id.take()` does the same for the id stored at buy time.
+**How:** On a sell, `position.take()` yields the **`OpenPosition`** and clears the slot. `open_trade_id.take()` does the same for the id stored at buy time.
 
 **Why:** Reduces “read, use, forget to clear” bugs and keeps duplicate state in sync.
 
@@ -164,13 +164,13 @@ The following applies to `src/engine.rs`. Earlier sections cover `Option` in gen
 
 **Why:** Long backtests compound rounding noise; a threshold stays stable for “enough cash to size a position?”
 
-### Storing `allocation` on the position
+### Storing `allocation` and `buy_fee` on the position
 
-**What:** Keep the **cash actually debited** as part of `Position`: `(entry_price, size, allocation)`.
+**What:** Keep the **cash allocated** to the trade and the **entry fee** on **`OpenPosition`** (along with `entry_price` and `size`).
 
-**How:** Set `allocation` at buy. On exit, `pnl = proceeds - allocation` instead of recomputing `size * entry_price`, which can drift from the debited amount.
+**How:** Set `allocation` and `buy_fee` at buy. On exit, PnL uses **net sell proceeds** minus **`allocation`** minus **`buy_fee`** (see `engine.rs`), so fees stay consistent in metrics and trade rows.
 
-**Why:** One source of truth for capital at risk keeps PnL, logs, and CSV exports aligned.
+**Why:** One source of truth for capital at risk and entry costs keeps PnL, logs, and CSV exports aligned when **`fee_rate`** is non-zero.
 
 ### Passing `&[Candle]` instead of `Vec<Candle>`
 

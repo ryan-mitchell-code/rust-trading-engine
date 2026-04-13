@@ -1,5 +1,7 @@
 # Trading Strategy Backtesting & Visualization System (PRD)
 
+---
+
 ## 1. Objective
 
 Build an interactive system to:
@@ -9,82 +11,114 @@ Build an interactive system to:
 The system should prioritize:
 
 * clarity of results
-* understanding of risk vs return trade-offs
+* understanding of **risk vs return trade-offs**
 * fast iteration and experimentation
+* increasing realism over time
 
 ---
 
 ## 2. Current State
 
+---
+
 ### Backend (Rust)
 
-* Backtesting engine:
+#### Engine
+
+* Backtesting engine with:
 
   * Position management
   * Trade lifecycle (BUY → SELL)
+  * Capital tracking
+* Execution model:
 
-* Strategy abstraction via `Strategy` trait
+  * Currently **same-candle execution (to be improved)**
 
-* Implemented strategies:
+---
 
-  * Moving Average crossover
-  * RSI mean-reversion
-  * Random
-  * Buy & Hold (benchmark)
+#### Strategies
 
-* Metrics:
+* Moving Average crossover (trend-following)
+* RSI mean-reversion
+* Random (baseline)
+* Buy & Hold (benchmark)
 
-  * Return %
-  * Sharpe ratio
-  * Max drawdown
-  * Drawdown duration
-  * Win rate, avg PnL
+---
 
-* Data:
+#### Metrics
 
-  * Binance OHLC integration
+* Return %
+* Sharpe ratio
+* Max drawdown
+* Drawdown duration
+* Win rate
+* Avg PnL
+* Relative return vs Buy & Hold
 
-* Output:
+---
 
-  * `BacktestRun { market, results }`
+#### Data
 
-* Configuration:
+* Binance OHLC (open, high, low, close)
+* Cached locally
 
-  * `RunConfig` bundles MA windows and RSI parameters for each arena run
-  * `POST /run` accepts MA and RSI fields (see §6) with defaults
+---
+
+#### API
+
+* `POST /run`
+* Accepts:
+
+  * dataset
+  * interval
+  * MA parameters
+  * RSI parameters
+* Uses `RunConfig` internally
+
+---
 
 ---
 
 ### Frontend (React + TypeScript)
 
-* Charts:
+---
 
-  * Market OHLC (candlestick)
-  * Equity curves
-  * Drawdown curves
-  * Candlestick time-range presets (e.g. All, 1M, 3M, 6M, 1Y) via chart time scale
+#### Visualization
 
-* Interaction:
+* Candlestick chart (OHLC)
+* Equity curves (multi-strategy)
+* Drawdown chart
+* Trade markers on chart
 
-  * Run backtest via API
-  * Dataset selection (BTC, ETH)
-  * Strategy selection (cards + comparison table)
-  * View toggle (charts / table)
-  * Collapsible **Settings** panel for strategy parameters (MA short/long, RSI period and thresholds)
+---
 
-* Visual features:
+#### Interaction
 
-  * Strategy summary cards
-  * Best strategy highlighting
-  * Trade markers on the candlestick chart when a strategy is selected
+* Run backtest via API
+* Dataset selection
+* Strategy selection (cards + table)
+* Chart/table toggle
+* Time range controls (via `setVisibleRange`)
+* Collapsible **Settings panel** for parameters
+
+---
+
+#### UX Features
+
+* Strategy summary cards
+* Best strategy highlighting
+* Inline parameter summary
+* Clean dashboard layout
 
 ---
 
 ## 3. Core Capabilities
 
+---
+
 ### 3.1 Data
 
-* Load historical OHLC data
+* Load OHLC data
 * Support multiple datasets
 * (Future) support multiple timeframes
 
@@ -92,7 +126,7 @@ The system should prioritize:
 
 ### 3.2 Simulation
 
-* Execute strategies over shared dataset
+* Execute strategies on shared dataset
 * Track:
 
   * capital
@@ -105,46 +139,37 @@ The system should prioritize:
 ### 3.3 Evaluation
 
 * Compute performance metrics
-* Compare strategies vs benchmark (Buy & Hold)
-* Rank strategies using scoring system
-* Per-strategy **relative return vs Buy & Hold** in results (`summary.relative_return`)
-* (Future) extend relative / cross-strategy metrics in backend as needed
+* Compare vs Buy & Hold
+* Rank strategies
+* Support relative performance metrics
 
 ---
 
 ### 3.4 Visualization
 
-* Provide:
-
-  * market context (OHLC candlestick chart)
-  * performance (equity)
-  * risk (drawdown)
-
-* Enable:
-
-  * multi-strategy comparison
-  * strategy highlighting
-  * trade inspection
+* Market context (candles)
+* Performance (equity)
+* Risk (drawdown)
+* Trade inspection
 
 ---
 
 ### 3.5 Interaction
 
-* Trigger backtests from UI
-* Select dataset
-* Select and highlight strategies
-* View charts or table
-* Inspect trades visually
+* Run simulations from UI
+* Adjust parameters
+* Highlight strategies
+* Explore results visually
 
 ---
 
 ## 4. Architecture Principles
 
-* Backend is the **source of truth**
-* UI is primarily **visualization + interaction layer**
-* Derived metrics may temporarily exist in UI but should migrate to backend
-* Keep API contracts explicit and simple
+* Backend = **source of truth**
+* UI = **visualization + interaction**
+* Avoid logic duplication
 * Prefer clarity over abstraction
+* Build incrementally toward flexibility
 
 ---
 
@@ -152,66 +177,91 @@ The system should prioritize:
 
 ---
 
-### Phase 1 — Visualization ✅ Complete
+### Phase 1 — Visualization ✅
 
-Goal:
-
-> Make results understandable
-
-* [x] Market price chart
-* [x] Equity chart
-* [x] Drawdown chart
-* [x] Strategy comparison table
-* [x] Buy & Hold benchmark
-* [x] Trade markers
+* Charts (price, equity, drawdown)
+* Strategy comparison
+* Trade markers
 
 ---
 
-### Phase 2 — Interaction 🚧 In Progress
-
-Goal:
-
-> Make system exploratory
+### Phase 2 — Interaction 🚧
 
 #### Completed
 
-* [x] Run backtest from UI (`POST /run`)
-* [x] Dataset selection
-* [x] Strategy selection & highlighting
-* [x] View toggle (charts / table)
-* [x] Strategy summary cards
-* [x] Parameter controls for **Moving Average** (short / long) and **RSI** (period, overbought, oversold), sent with `POST /run`
-* [x] Collapsible settings panel + inline param summary when collapsed
+* Run via API
+* Dataset selection
+* Strategy highlighting
+* Parameter controls (MA + RSI)
+* Collapsible settings panel
+* Time range controls (chart zoom)
+
+---
 
 #### Remaining
 
-* [ ] Strategy enable/disable (API-driven — which strategies run in the arena)
-* [ ] Timeframe selection (1d, 4h, etc.) end-to-end (UI + API + data load)
+* [ ] Strategy enable/disable (API-driven)
+* [ ] Timeframe selection (1d, 4h, etc.)
+
+---
+
+---
+
+### ✨ Phase 2.5 — Realism & Execution (NEW)
+
+**Goal:**
+
+> Make backtests reflect real trading conditions
+
+---
+
+#### Execution Model
+
+* [ ] Execute trades on **next candle open**
+* [ ] Remove lookahead bias
+
+---
+
+#### Trading Frictions
+
+* [ ] Add trading fees (e.g. 0.1%)
+* [ ] Add slippage (simple model)
+
+---
+
+#### Engine Improvements
+
+* [ ] Separate **signal vs execution**
+* [ ] Ensure consistent fill logic
+
+---
 
 ---
 
 ### Phase 3 — Strategy Research
 
-Goal:
+**Goal:**
 
-> Enable experimentation
+> Improve and evaluate strategies meaningfully
 
+---
+
+* [ ] Hybrid strategies (e.g. MA + RSI)
 * [ ] Parameter sweeps
-* [ ] Compare multiple runs
-* [ ] Deeper relative performance vs benchmark (beyond current `relative_return` + scoring)
+* [ ] Multi-run comparison
 * [ ] Alternative scoring models
+
+---
 
 ---
 
 ### Phase 4 — Portfolio Simulation
 
-Goal:
-
-> Combine strategies
-
-* [ ] Allocate capital across strategies
+* [ ] Combine strategies
+* [ ] Allocate capital
 * [ ] Portfolio metrics
-* [ ] Compare portfolio vs individual strategies
+
+---
 
 ---
 
@@ -219,22 +269,16 @@ Goal:
 
 * [ ] Multi-dataset comparison
 * [ ] Strategy optimization
-* [ ] Advanced visualizations:
-
-  * risk vs return scatter
-  * drawdown duration charts
+* [ ] Risk vs return visualization
+* [ ] Drawdown analytics
 
 ---
 
 ## 6. API Design
 
-### Endpoint
-
-`POST /run`
-
 ---
 
-### Request (Current)
+### Current
 
 ```json
 {
@@ -248,13 +292,9 @@ Goal:
 }
 ```
 
-`ma_*` and `rsi_*` fields are optional; defaults match the UI (e.g. MA 10/50, RSI 14/70/30).
-
 ---
 
-### Request (Future)
-
-Structured per-strategy enablement and configuration (replacing the flat MA/RSI fields above):
+### Future (Target)
 
 ```json
 {
@@ -262,58 +302,53 @@ Structured per-strategy enablement and configuration (replacing the flat MA/RSI 
   "interval": "1d",
   "strategies": [
     { "type": "moving_average", "short": 10, "long": 50 },
-    { "type": "buy_and_hold" }
+    { "type": "rsi", "period": 14, "overbought": 70, "oversold": 30 }
   ]
 }
 ```
 
 ---
 
-### Response
-
-`BacktestRun` (JSON). Shape matches Rust `engine::BacktestRun` / `serde` export.
-
-**`market`** — shared series, one row per bar (aligned with strategy curves):
-
-```json
-[
-  ["2024-01-01T00:00:00+00:00", 42000.0, 43000.0, 41500.0, 42500.0],
-  ...
-]
-```
-
-Each row is **`[timestamp, open, high, low, close]`** (numbers are `f64`).
-
-**`results`** — array of per-strategy objects: `name`, `summary`, `equity_curve`, `drawdown_curve`, `trades`, etc.
+## 7. Immediate Next Steps (Prioritized)
 
 ---
 
-### Notes
+### 🔥 1. Engine Realism (Highest Priority)
 
-* API is intentionally minimal
-* MA/RSI parameters are supported; **arena strategies are still fixed** (MA, RSI, random, buy-and-hold) until enable/disable lands
-* Future expansion:
-
-  * strategy enable/disable and richer `strategies` JSON (see above)
-  * additional strategy types and parameters
+* Add fees
+* Implement next-candle execution
+* Add slippage
 
 ---
 
-## 7. Immediate Next Steps
+### 🧠 2. Strategy Evolution
 
-1. **Timeframe selection** — user-selectable interval in UI and `POST /run`, backed by Binance load
-2. **Strategy enable/disable** — API + arena to run a subset of strategies
-3. **Structured strategy config** — optional `strategies` array (or equivalent) on `POST /run`
-4. **Phase 3** — sweeps, multi-run comparison, scoring experiments
+* Build hybrid strategy (MA + RSI)
+
+---
+
+### 🧩 3. API Evolution
+
+* Strategy enable/disable
+* Move toward structured config
+
+---
+
+### 🎛 4. UI Improvements
+
+* Strategy toggles
+* Parameter presets
+* Better chart controls
 
 ---
 
 ## 8. Key Insights
 
-* Performance must be evaluated relative to a benchmark
-* Drawdown is as important as return
-* Visualization should answer questions, not just display data
-* Simplicity enables faster iteration
+* Profit alone is misleading
+* Drawdown defines survivability
+* Backtest realism is critical
+* Indicators are building blocks, not strategies
+* Visualization should answer questions
 
 ---
 
@@ -331,3 +366,9 @@ The system clearly communicates:
 * performance
 * risk
 * trade-offs
+
+And:
+
+> results are **credible, not just plausible**
+
+---

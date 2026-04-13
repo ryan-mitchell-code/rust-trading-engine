@@ -5,12 +5,14 @@ use crate::paths;
 use crate::strategy::Strategy;
 use serde::Serialize;
 
-/// Capital, sizing, and (later) execution costs for a backtest run.
+/// Capital, sizing, and execution costs for a backtest run.
 #[derive(Debug, Clone, Copy)]
 pub struct BacktestParams {
     pub initial_capital: f64,
     /// Fraction of **current** cash allocated on each buy (e.g. `0.10` → 10%).
     pub position_fraction: f64,
+    /// Per-side fee as a fraction of notional (e.g. `0.001` = 0.1%). Charged on buy allocation and on sell proceeds.
+    pub fee_rate: f64,
 }
 
 impl Default for BacktestParams {
@@ -18,16 +20,18 @@ impl Default for BacktestParams {
         Self {
             initial_capital: 10_000.0,
             position_fraction: 0.10,
+            fee_rate: 0.0,
         }
     }
 }
 
-/// Open position: fill price per unit, size in units, cash paid at entry.
+/// Open position: fill price per unit, size in units, cash allocated to the position, and entry fee paid.
 #[derive(Debug, Clone, Copy)]
 struct OpenPosition {
     entry_price: f64,
     size: f64,
     allocation: f64,
+    buy_fee: f64,
 }
 
 /// Deferred strategy output: `timestamp` is the **generation** bar (`candle.timestamp` when `signal` was produced).
@@ -180,19 +184,24 @@ fn execute_signal(
                 let allocation = *cash * params.position_fraction;
 
                 if allocation > f64::EPSILON {
-                    let trade_id = *next_trade_id;
-                    *next_trade_id += 1;
-                    *open_trade_id = Some(trade_id);
+                    let buy_fee = allocation * params.fee_rate;
+                    let cash_out = allocation + buy_fee;
+                    if *cash + f64::EPSILON >= cash_out {
+                        let trade_id = *next_trade_id;
+                        *next_trade_id += 1;
+                        *open_trade_id = Some(trade_id);
 
-                    let size = allocation / fill_price;
-                    *cash -= allocation;
-                    *position = Some(OpenPosition {
-                        entry_price: fill_price,
-                        size,
-                        allocation,
-                    });
+                        let size = allocation / fill_price;
+                        *cash -= cash_out;
+                        *position = Some(OpenPosition {
+                            entry_price: fill_price,
+                            size,
+                            allocation,
+                            buy_fee,
+                        });
 
-                    buy_log = Some((trade_id, trade_timestamp.to_string(), fill_price));
+                        buy_log = Some((trade_id, trade_timestamp.to_string(), fill_price));
+                    }
                 }
             }
         }
@@ -200,14 +209,17 @@ fn execute_signal(
             if let Some(OpenPosition {
                 size,
                 allocation,
+                buy_fee,
                 ..
             }) = position.take()
             {
                 let exit_price = fill_price;
                 let proceeds = size * exit_price;
-                let pnl = realized_pnl(size, exit_price, allocation);
+                let sell_fee = proceeds * params.fee_rate;
+                let net_proceeds = proceeds - sell_fee;
+                let pnl = net_proceeds - allocation - buy_fee;
 
-                *cash += proceeds;
+                *cash += net_proceeds;
                 metrics.record_trade(pnl);
 
                 let trade_id = open_trade_id
@@ -241,10 +253,9 @@ pub fn run<S: Strategy>(
     let mut pending_signal: Option<PendingSignal> = None;
 
     for (i, candle) in data.iter().enumerate() {
-        let is_last_bar = i + 1 == data.len();
-        // First bar: `pending_signal` is always `None` — never execute before any signal exists.
-        // Last bar: deferred fills need a *following* bar's open; there is none, so drop pending without executing.
-        let execute_pending = i > 0 && !is_last_bar;
+        // First bar: no prior signal to execute. Later bars: run the *previous* bar's deferred signal at this bar's open
+        // (including the final bar — then any open position is force-closed at `data.last().close` after the loop).
+        let execute_pending = i > 0;
 
         let (buy_log, sell_log) = if execute_pending {
             if let Some(pending) = pending_signal.take() {
@@ -271,10 +282,11 @@ pub fn run<S: Strategy>(
                 (None, None)
             }
         } else {
-            if is_last_bar && pending_signal.is_some() && verbose {
-                println!("Dropping pending signal on last bar (no next open for execution)");
+            // No prior bar to execute against; clear before this bar's signal is stored (always overwritten on the next line).
+            #[allow(unused_assignments)]
+            {
+                pending_signal = None;
             }
-            let _ = pending_signal.take();
             (None, None)
         };
 
@@ -321,18 +333,32 @@ pub fn run<S: Strategy>(
         equity_curve.push(capital);
     }
 
+    // Last bar's strategy output is never executed (no following bar open). Discard for clarity; no trades/metrics/cash impact.
+    if let Some(pending) = pending_signal.take() {
+        if verbose {
+            println!(
+                "Dropping pending {} signal from {} (no next open for execution)",
+                signal_verb(&pending.signal),
+                pending.timestamp
+            );
+        }
+    }
+
     if let Some(OpenPosition {
         size,
         allocation,
+        buy_fee,
         ..
     }) = position.take()
     {
         let last = data.last().expect("data not empty");
         let exit_price = last.close;
         let proceeds = size * exit_price;
-        let pnl = realized_pnl(size, exit_price, allocation);
+        let sell_fee = proceeds * params.fee_rate;
+        let net_proceeds = proceeds - sell_fee;
+        let pnl = net_proceeds - allocation - buy_fee;
 
-        cash += proceeds;
+        cash += net_proceeds;
         metrics.record_trade(pnl);
 
         let trade_id = open_trade_id
@@ -406,6 +432,250 @@ pub fn run<S: Strategy>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::strategy::Strategy;
+
+    /// Deterministic signal sequence for engine tests (`next` advances each bar).
+    struct TestStrategy {
+        signals: Vec<Signal>,
+        index: usize,
+    }
+
+    impl TestStrategy {
+        fn new(signals: Vec<Signal>) -> Self {
+            Self { signals, index: 0 }
+        }
+    }
+
+    impl Strategy for TestStrategy {
+        fn next(&mut self, _candle: &Candle) -> Signal {
+            let out = self
+                .signals
+                .get(self.index)
+                .copied()
+                .unwrap_or(Signal::Hold);
+            self.index += 1;
+            out
+        }
+    }
+
+    #[test]
+    fn test_strategy_emits_scripted_signals_then_hold() {
+        use crate::models::Candle;
+        let bar = Candle::test_close(100.0);
+        let mut strat = TestStrategy::new(vec![Signal::Buy, Signal::Sell]);
+        assert_eq!(strat.next(&bar), Signal::Buy);
+        assert_eq!(strat.next(&bar), Signal::Sell);
+        assert_eq!(strat.next(&bar), Signal::Hold);
+        assert_eq!(strat.next(&bar), Signal::Hold);
+    }
+
+    /// Buy signaled on bar 0 fills at bar 1 open (110), not bar 0 close (100).
+    #[test]
+    fn next_bar_buy_executes_at_following_open() {
+        use crate::models::Candle;
+        let candles = vec![
+            Candle {
+                timestamp: "bar0".into(),
+                open: 100.0,
+                high: 100.0,
+                low: 100.0,
+                close: 100.0,
+            },
+            Candle {
+                timestamp: "bar1".into(),
+                open: 110.0,
+                high: 110.0,
+                low: 110.0,
+                close: 110.0,
+            },
+            Candle {
+                timestamp: "bar2".into(),
+                open: 120.0,
+                high: 120.0,
+                low: 120.0,
+                close: 120.0,
+            },
+        ];
+        let strat = TestStrategy::new(vec![Signal::Buy, Signal::Hold, Signal::Hold]);
+        let res = run(
+            &candles,
+            strat,
+            "next_bar_timing",
+            &BacktestParams::default(),
+            false,
+        );
+        let buy = res
+            .trades
+            .iter()
+            .find(|row| row.get(2).is_some_and(|s| s == "BUY"))
+            .expect("BUY row");
+        assert_eq!(buy[1], "bar1", "fill timestamp should be execution bar");
+        let fill_price: f64 = buy[3].parse().expect("price column");
+        assert_close(fill_price, 110.0);
+    }
+
+    /// Buy on bar 0 fills at bar 1 open (200), not signal bar close (150).
+    #[test]
+    fn next_bar_buy_uses_next_open_not_signal_close() {
+        use crate::models::Candle;
+        let candles = vec![
+            Candle {
+                timestamp: "b0".into(),
+                open: 100.0,
+                high: 150.0,
+                low: 100.0,
+                close: 150.0,
+            },
+            Candle {
+                timestamp: "b1".into(),
+                open: 200.0,
+                high: 200.0,
+                low: 200.0,
+                close: 200.0,
+            },
+        ];
+        let strat = TestStrategy::new(vec![Signal::Buy]);
+        let res = run(
+            &candles,
+            strat,
+            "next_open_not_close",
+            &BacktestParams::default(),
+            false,
+        );
+        let buy = res
+            .trades
+            .iter()
+            .find(|row| row.get(2).is_some_and(|s| s == "BUY"))
+            .expect("BUY row");
+        let fill_price: f64 = buy[3].parse().expect("price column");
+        assert_close(fill_price, 200.0);
+    }
+
+    /// Deferred execution has no following open on the final bar — Buy there is dropped.
+    #[test]
+    fn last_bar_signal_is_not_executed() {
+        use crate::models::Candle;
+        let candles = vec![
+            Candle {
+                timestamp: "b0".into(),
+                open: 100.0,
+                high: 100.0,
+                low: 100.0,
+                close: 100.0,
+            },
+            Candle {
+                timestamp: "b1".into(),
+                open: 110.0,
+                high: 110.0,
+                low: 110.0,
+                close: 110.0,
+            },
+        ];
+        let strat = TestStrategy::new(vec![Signal::Hold, Signal::Buy]);
+        let res = run(
+            &candles,
+            strat,
+            "last_bar_no_exec",
+            &BacktestParams::default(),
+            false,
+        );
+        assert!(
+            res.trades.is_empty(),
+            "expected no trades when Buy only appears on the last bar"
+        );
+    }
+
+    /// Open position at last bar's open is force-closed at that bar's close.
+    #[test]
+    fn open_position_force_closed_at_final_bar_close() {
+        use crate::models::Candle;
+        let candles = vec![
+            Candle {
+                timestamp: "b0".into(),
+                open: 100.0,
+                high: 100.0,
+                low: 100.0,
+                close: 100.0,
+            },
+            Candle {
+                timestamp: "b1".into(),
+                open: 110.0,
+                high: 120.0,
+                low: 110.0,
+                close: 120.0,
+            },
+        ];
+        let strat = TestStrategy::new(vec![Signal::Buy]);
+        let res = run(
+            &candles,
+            strat,
+            "force_close_final_bar",
+            &BacktestParams::default(),
+            false,
+        );
+        let buys: Vec<_> = res
+            .trades
+            .iter()
+            .filter(|row| row.get(2).is_some_and(|s| s == "BUY"))
+            .collect();
+        let sells: Vec<_> = res
+            .trades
+            .iter()
+            .filter(|row| row.get(2).is_some_and(|s| s == "SELL"))
+            .collect();
+        assert_eq!(buys.len(), 1, "expected one BUY");
+        assert_eq!(sells.len(), 1, "expected one SELL (final)");
+        let buy_price: f64 = buys[0][3].parse().expect("BUY price");
+        assert_close(buy_price, 110.0);
+        let sell_price: f64 = sells[0][3].parse().expect("SELL price");
+        assert_close(sell_price, 120.0);
+        let pnl: f64 = sells[0][4].parse().expect("SELL pnl");
+        assert!(pnl > 0.0, "expected positive PnL, got {}", pnl);
+    }
+
+    /// At flat price, round-trip still loses to entry + exit fees.
+    #[test]
+    fn fee_reduces_pnl_on_flat_price() {
+        use crate::models::Candle;
+        let candles = vec![
+            Candle {
+                timestamp: "b0".into(),
+                open: 100.0,
+                high: 100.0,
+                low: 100.0,
+                close: 100.0,
+            },
+            Candle {
+                timestamp: "b1".into(),
+                open: 100.0,
+                high: 100.0,
+                low: 100.0,
+                close: 100.0,
+            },
+        ];
+        let strat = TestStrategy::new(vec![Signal::Buy]);
+        let params = BacktestParams {
+            fee_rate: 0.01,
+            ..BacktestParams::default()
+        };
+        let res = run(&candles, strat, "fee_flat_pnl", &params, false);
+        let buys: Vec<_> = res
+            .trades
+            .iter()
+            .filter(|row| row.get(2).is_some_and(|s| s == "BUY"))
+            .collect();
+        let sells: Vec<_> = res
+            .trades
+            .iter()
+            .filter(|row| row.get(2).is_some_and(|s| s == "SELL"))
+            .collect();
+        assert_eq!(buys.len(), 1);
+        assert_eq!(sells.len(), 1);
+        assert_close(buys[0][3].parse::<f64>().expect("BUY price"), 100.0);
+        assert_close(sells[0][3].parse::<f64>().expect("SELL price"), 100.0);
+        let pnl: f64 = sells[0][4].parse().expect("SELL pnl");
+        assert!(pnl < 0.0, "expected negative PnL from fees, got {}", pnl);
+    }
 
     const EPS: f64 = f64::EPSILON * 10.0;
 
@@ -429,6 +699,7 @@ mod tests {
             entry_price: 100.0,
             size: 2.0,
             allocation: 200.0,
+            buy_fee: 0.0,
         });
         // cash 8_000 + 2 units * mark 110 = 8_220
         assert_close(calculate_capital(8_000.0, &position, 110.0), 8_220.0);
@@ -464,6 +735,7 @@ mod tests {
             entry_price,
             size,
             allocation,
+            buy_fee: 0.0,
         });
 
         assert_close(calculate_capital(cash, &position, entry_price), 10_000.0);

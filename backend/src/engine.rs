@@ -30,6 +30,30 @@ struct OpenPosition {
     allocation: f64,
 }
 
+/// Deferred strategy output: `timestamp` is the **generation** bar (`candle.timestamp` when `signal` was produced).
+#[derive(Debug)]
+struct PendingSignal {
+    signal: Signal,
+    timestamp: String,
+}
+
+impl PendingSignal {
+    fn new(candle: &Candle, signal: Signal) -> Self {
+        Self {
+            signal,
+            timestamp: candle.timestamp.clone(),
+        }
+    }
+}
+
+fn signal_verb(signal: &Signal) -> &'static str {
+    match signal {
+        Signal::Buy => "BUY",
+        Signal::Sell => "SELL",
+        Signal::Hold => "HOLD",
+    }
+}
+
 fn calculate_capital(cash: f64, position: &Option<OpenPosition>, mark_price: f64) -> f64 {
     let held = position.as_ref().map(|p| p.size).unwrap_or(0.0);
     cash + held * mark_price
@@ -132,6 +156,73 @@ fn make_trade_row(
     ]
 }
 
+/// Apply a **deferred** signal at `fill_price` (e.g. current bar **open**). Log rows use `trade_timestamp`.
+fn execute_signal(
+    signal: Signal,
+    fill_price: f64,
+    trade_timestamp: &str,
+    cash: &mut f64,
+    position: &mut Option<OpenPosition>,
+    open_trade_id: &mut Option<u32>,
+    next_trade_id: &mut u32,
+    metrics: &mut Metrics,
+    params: &BacktestParams,
+) -> (
+    Option<(u32, String, f64)>,
+    Option<(u32, String, f64, f64)>,
+) {
+    let mut buy_log: Option<(u32, String, f64)> = None;
+    let mut sell_log: Option<(u32, String, f64, f64)> = None;
+
+    match signal {
+        Signal::Buy => {
+            if position.is_none() {
+                let allocation = *cash * params.position_fraction;
+
+                if allocation > f64::EPSILON {
+                    let trade_id = *next_trade_id;
+                    *next_trade_id += 1;
+                    *open_trade_id = Some(trade_id);
+
+                    let size = allocation / fill_price;
+                    *cash -= allocation;
+                    *position = Some(OpenPosition {
+                        entry_price: fill_price,
+                        size,
+                        allocation,
+                    });
+
+                    buy_log = Some((trade_id, trade_timestamp.to_string(), fill_price));
+                }
+            }
+        }
+        Signal::Sell => {
+            if let Some(OpenPosition {
+                size,
+                allocation,
+                ..
+            }) = position.take()
+            {
+                let exit_price = fill_price;
+                let proceeds = size * exit_price;
+                let pnl = realized_pnl(size, exit_price, allocation);
+
+                *cash += proceeds;
+                metrics.record_trade(pnl);
+
+                let trade_id = open_trade_id
+                    .take()
+                    .expect("sell should follow a logged buy");
+
+                sell_log = Some((trade_id, trade_timestamp.to_string(), exit_price, pnl));
+            }
+        }
+        Signal::Hold => {}
+    }
+
+    (buy_log, sell_log)
+}
+
 pub fn run<S: Strategy>(
     data: &[Candle],
     mut strategy: S,
@@ -147,58 +238,47 @@ pub fn run<S: Strategy>(
     let mut metrics = Metrics::new(initial);
     let mut trade_rows: Vec<Vec<String>> = Vec::new();
     let mut equity_curve: Vec<f64> = Vec::with_capacity(data.len());
+    let mut pending_signal: Option<PendingSignal> = None;
 
-    for candle in data {
-        let signal = strategy.next(candle);
+    for (i, candle) in data.iter().enumerate() {
+        let is_last_bar = i + 1 == data.len();
+        // First bar: `pending_signal` is always `None` — never execute before any signal exists.
+        // Last bar: deferred fills need a *following* bar's open; there is none, so drop pending without executing.
+        let execute_pending = i > 0 && !is_last_bar;
 
-        let mut buy_log: Option<(u32, String, f64)> = None;
-        let mut sell_log: Option<(u32, String, f64, f64)> = None;
-
-        match signal {
-            Signal::Buy => {
-                if position.is_none() {
-                    let allocation = cash * params.position_fraction;
-
-                    if allocation > f64::EPSILON {
-                        let trade_id = next_trade_id;
-                        next_trade_id += 1;
-                        open_trade_id = Some(trade_id);
-
-                        let size = allocation / candle.close;
-                        cash -= allocation;
-                        position = Some(OpenPosition {
-                            entry_price: candle.close,
-                            size,
-                            allocation,
-                        });
-
-                        buy_log = Some((trade_id, candle.timestamp.clone(), candle.close));
-                    }
+        let (buy_log, sell_log) = if execute_pending {
+            if let Some(pending) = pending_signal.take() {
+                if verbose {
+                    println!(
+                        "Executing {} signal from {} at {} open",
+                        signal_verb(&pending.signal),
+                        pending.timestamp,
+                        candle.timestamp
+                    );
                 }
+                execute_signal(
+                    pending.signal,
+                    candle.open,
+                    &candle.timestamp,
+                    &mut cash,
+                    &mut position,
+                    &mut open_trade_id,
+                    &mut next_trade_id,
+                    &mut metrics,
+                    params,
+                )
+            } else {
+                (None, None)
             }
-            Signal::Sell => {
-                if let Some(OpenPosition {
-                    size,
-                    allocation,
-                    ..
-                }) = position.take()
-                {
-                    let exit_price = candle.close;
-                    let proceeds = size * exit_price;
-                    let pnl = realized_pnl(size, exit_price, allocation);
-
-                    cash += proceeds;
-                    metrics.record_trade(pnl);
-
-                    let trade_id = open_trade_id
-                        .take()
-                        .expect("sell should follow a logged buy");
-
-                    sell_log = Some((trade_id, candle.timestamp.clone(), exit_price, pnl));
-                }
+        } else {
+            if is_last_bar && pending_signal.is_some() && verbose {
+                println!("Dropping pending signal on last bar (no next open for execution)");
             }
-            Signal::Hold => {}
-        }
+            let _ = pending_signal.take();
+            (None, None)
+        };
+
+        pending_signal = Some(PendingSignal::new(candle, strategy.next(candle)));
 
         let capital = calculate_capital(cash, &position, candle.close);
 

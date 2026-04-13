@@ -1,203 +1,79 @@
-# 🚀 Rust Trading Engine (Learning Project)
+# Rust Trading Engine (Learning Project)
 
-A Rust-based trading backtesting and strategy evaluation engine built as a hands-on learning project.
-
-This project focuses on building a **modular, extensible system** for testing and comparing trading strategies, while learning Rust and core quantitative trading concepts.
-
-**Documentation:** [docs/README.md](docs/README.md) — product spec, learning notes, UI rules, and dev log (organized by folder).
-
-**Trading handbook:** [docs/reference/trading-handbook.md](docs/reference/trading-handbook.md) — learn markets and backtesting from scratch, with terms tied to this codebase (metrics, execution, where things live in Rust). Section 8 is a quick reference (A–Z style table). We extend it as we add realism (fees, slippage, stricter fills).
+Hands-on **Rust** backtester plus **React** UI: run strategies on historical bars, compare metrics, and visualize equity and drawdown.
 
 ---
 
-## ▶️ Run locally (API + UI — default)
+## Start here (reading order)
+
+1. **Run the app** — section below (`./scripts/dev.sh` or `npm run dev`).
+2. **Product** — [`docs/product/PRD.md`](docs/product/PRD.md) (source of truth: behavior, API, roadmap). Update it when the product changes.
+3. **Domain & backtesting** — [`docs/reference/trading-handbook.md`](docs/reference/trading-handbook.md) (from-scratch concepts for this codebase; §8 quick lookup).
+
+**Learnings & other docs** (open when you need them):
+
+| | |
+| --- | --- |
+| Journal | [`docs/learning/dev-log.md`](docs/learning/dev-log.md) |
+| Rust in this repo | [`docs/learning/rust-learning.md`](docs/learning/rust-learning.md) |
+| RSI notes | [`docs/learning/rsi-learning-notes.md`](docs/learning/rsi-learning-notes.md) |
+| UI conventions | [`docs/reference/ui-rules.md`](docs/reference/ui-rules.md) |
+| Contributor / AI rules | [`docs/reference/rules.md`](docs/reference/rules.md) |
+| Vision & constraints (not the PRD) | [`docs/project/context.md`](docs/project/context.md) |
+
+---
+
+## Run locally (API + UI)
 
 **Prerequisites:** [Rust](https://rustup.rs/) (stable), **Node 18+** and npm.
 
-From the repository root, start the **HTTP API** and the **Vite** dev server in one go:
+From the repository root:
 
 ```bash
 ./scripts/dev.sh
 ```
 
-Or:
+or:
 
 ```bash
 npm run dev
 ```
 
-This:
-
-1. Runs the backend with **`--serve`** — Axum listens on **`http://127.0.0.1:3000`**, exposing **`POST /run`** (dataset + interval → `BacktestRun` JSON).
-2. Starts the React app; Vite proxies **`/run`** to that API (see `ui/vite.config.ts`).
-
-Open **`http://localhost:5173`**, pick a dataset, and click **Run Backtest**. The first Rust compile can take about a minute; the script waits until port **3000** is open before starting the UI.
+This starts the Rust API on **`http://127.0.0.1:3000`** (`POST /run`) and the Vite app (proxies `/run`). Open **`http://localhost:5173`**, pick a dataset, run a backtest. First compile can take ~1 minute.
 
 **Manual (two terminals):**
 
 ```bash
-cargo run --manifest-path backend/Cargo.toml -- --serve   # terminal 1 — API
-npm --prefix ui install && npm --prefix ui run dev       # terminal 2 — UI
+cargo run --manifest-path backend/Cargo.toml -- --serve   # API
+npm --prefix ui install && npm --prefix ui run dev       # UI
 ```
 
-**One-shot CLI backtest** (no API: runs once, prints the comparison table, writes `outputs/results.json` and CSVs):
+**CLI only** (prints table, writes `outputs/results.json` and CSVs):
 
 ```bash
 cargo run --manifest-path backend/Cargo.toml
 ```
 
-Verbose engine logs: add `-v` or `--verbose` to that command (not used by `--serve`).
+Add `-v` / `--verbose` for engine logs (CLI only).
 
-**UI only** (Vite without the API — `Run Backtest` will fail until something serves `POST /run`):
+**UI without API** (`Run Backtest` fails until the API is up):
 
 ```bash
 npm --prefix ui install && npm --prefix ui run dev
 ```
 
-The Vite dev server can still expose **`/results.json`** from `outputs/results.json` for optional static viewing (`ui/backtest-results-plugin.ts`); the dashboard flow is **API-first** via **`POST /run`**.
+Optional: Vite can serve `outputs/results.json` at `/results.json` in dev (`ui/backtest-results-plugin.ts`). Normal flow is **API-first** via `POST /run`.
+
+**UI-specific details:** [`ui/README.md`](ui/README.md).
 
 ---
 
-## 🎯 Goals
+## Why this exists
 
-- Learn Rust through building a real-world system
-- Understand trading strategy design and evaluation
-- Explore systematic decision-making (not just profitability)
-- Experiment with AI-assisted development using Cursor
+- Learn Rust on a real-shaped system.
+- Learn **evaluation** (return, drawdown, Sharpe, benchmarks)—not just “signals that look smart.”
+- Experiment with AI-assisted development (Cursor).
 
----
-
-## ⚙️ Current Capabilities
-
-### 🧱 Backtesting Engine
-
-- Executes BUY / SELL lifecycle
-- Tracks capital, positions, and PnL
-- Supports pluggable strategies via trait system
-- Per-bar **equity** and **drawdown vs running peak** (computed in Rust; not recomputed in the UI)
-
-### 📊 Metrics & Analysis
-
-- Return (%)
-- Max drawdown (%)
-- Drawdown duration (DD bars)
-- **Per-period** Sharpe ratio from the equity curve (mean / sample std dev of step returns; **not** annualized)
-
-### 🧠 Strategy Evaluation
-
-- Multi-strategy comparison (“arena”)
-- Relative performance vs Buy & Hold
-- Score-based ranking using:
-
-  - return
-  - drawdown
-  - Sharpe ratio
-
-- Normalized scoring for fair comparison
-- Score breakdown (transparency of decision)
-
-### 📈 Strategies Implemented
-
-- Moving Average Crossover
-- RSI mean-reversion (14 / 70 / 30)
-- Random (baseline)
-- Buy & Hold (benchmark)
-
-### 📥 Data
-
-- Default: **Binance** spot klines (`BTCUSDT`, `1d`, limit 1000) with a **local JSON cache** under `outputs/` to avoid repeat API calls
-- Optional: CSV loading remains available in code for ad-hoc use (`data::load_csv`)
-
-### 📤 Outputs
-
-- **`outputs/results.json`**: structured **`BacktestRun`** — shared **market** (timestamp + OHLC per bar) plus **per-strategy** results (summaries, equity as `f64[]`, drawdown as `f64[]`, trades)
-- **CSV**: equity curve and trades per strategy (for spreadsheets)
-- **CLI**: comparison table with full metrics
-
-### 🖥️ UI (React)
-
-- **Default:** **`POST /run`** to the Rust API (same `BacktestRun` JSON as file export)
-- **Optional dev:** Vite can serve workspace **`outputs/results.json`** at `/results.json` for static viewing
-- Strategy comparison table, **market price**, **equity**, and **drawdown** charts (Buy & Hold shown as a neutral benchmark style)
+> This project is about **building tools to evaluate strategies correctly**, not about shipping a profitable bot.
 
 ---
-
-## 🏗️ Architecture Overview
-
-```text
-Market data (Binance API + cache, or CSV)
-   ↓
-Strategies
-   ↓
-Engine (execution + state)
-   ↓
-Metrics (performance measurement)
-   ↓
-Evaluation (scoring + ranking)
-   ↓
-Output: CLI + CSV + results.json
-  ↓
-UI (POST /run to API, or optional static results.json in dev)
-```
-
-Key design principles:
-
-- Separation of concerns (engine vs evaluation)
-- Explicit state over hidden logic
-- Deterministic, testable components
-- Incremental, iterative development
-
----
-
-## 🧠 Key Concepts Learned
-
-### Rust
-
-- Ownership & borrowing (`Option<T>`, `take()`)
-- Traits and generics (`Strategy` abstraction)
-- Modular system design
-- Avoiding unnecessary cloning
-
-### Trading
-
-- See [docs/reference/trading-handbook.md](docs/reference/trading-handbook.md) for the full guide (drawdown, Sharpe, signals vs execution, and more).
-- Profit ≠ good strategy
-- Importance of risk (drawdown)
-- Consistency vs volatility (Sharpe ratio)
-- Benchmarking against Buy & Hold
-- Backtesting as a decision tool, not prediction
-
----
-
-## 📈 Roadmap
-
-### 🔜 Next Steps
-
-- Experiment with multiple scoring models
-- Improve strategy quality and parameters
-- Optional: CLI flags for symbol / interval / data source (without editing `main.rs`)
-
-### 🚀 Future Goals
-
-- Strategy parameter tuning and sweeps
-- Parallel backtesting
-- Paper trading via exchange APIs
-- More advanced metrics (e.g. volatility, drawdown duration as % of window)
-
----
-
-## 📓 Dev Log
-
-See [`docs/learning/dev-log.md`](docs/learning/dev-log.md) for reflections, mistakes, and learning notes throughout development. The full doc index is [`docs/README.md`](docs/README.md).
-
----
-
-## 💡 Project Philosophy
-
-This project is not about finding a profitable strategy.
-
-It’s about:
-
-> **building the tools to evaluate strategies correctly**
-
-and developing a deep understanding of both Rust and systematic trading.

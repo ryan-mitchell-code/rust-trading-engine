@@ -1,5 +1,7 @@
 # Trading Strategy Backtesting & Visualization System (PRD)
 
+**This file is the product source of truth** for shipped behavior, API, and roadmap.
+
 ---
 
 ## 1. Objective
@@ -62,7 +64,7 @@ Arena runs a **fixed set** of four strategies every request (not yet selectable 
 #### Data
 
 * Binance spot klines → full OHLC per bar
-* Fetched per request and cached only in memory for that run (no persistent local cache layer in-app)
+* `load_from_binance` reads **`outputs/binance_cache_<symbol>_<interval>_<limit>.json`** when present; on miss, fetches Binance and writes that file
 * Default fetch limit: **1000** bars (`POST /run`)
 
 ---

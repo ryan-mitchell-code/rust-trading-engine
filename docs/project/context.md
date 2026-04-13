@@ -1,134 +1,35 @@
-# Project Context
+# Project context (vision & constraints)
 
-This is a Rust-based trading backtesting engine built as a learning project.
+**Product facts** (what ships, API shape, roadmap) live in **`docs/product/PRD.md`**. Update that file when behavior or scope changes.
 
-The long-term goal is to evolve this into a **strategy simulation platform** where multiple trading algorithms ("bots") can be compared and evaluated visually.
-
----
-
-## 🎯 Goals
-
-- Learn Rust through a real-world system
-- Understand trading strategy design and risk
-- Build a modular and extensible simulation engine
-- Enable comparison of multiple trading strategies
+This page only captures **motivation and guardrails** that are easy to lose if we duplicated the PRD.
 
 ---
 
-## 📊 Simulation Goal
+## Long-term direction
 
-The system should support:
-
-- Running trading strategies on historical data
-- Tracking capital over time
-- Producing outputs suitable for visualisation
-- Comparing performance across strategies
-
-A “bot” will eventually represent:
-
-- A strategy
-- Capital
-- Internal state
+Evolve toward a **strategy simulation platform**: multiple algorithms (“bots”) compared on shared data, with clear capital and state per strategy. Today the arena runs a **fixed** strategy set; configurability is on the roadmap in the PRD.
 
 ---
 
-## 📈 Visualisation Goal
+## AI-assisted development
 
-Visual feedback is essential for learning.
-
-The system produces:
-
-- Equity curve (capital over time) and per-bar drawdown series (from the engine)
-- Trade log (buy/sell events and outcomes)
-- Shared market series in `results.json` (per bar: timestamp + OHLC)
-
-These outputs are available as:
-
-- **JSON** for the React UI (`outputs/results.json`)
-- **CSV** for Excel / Google Sheets
+Cursor assists implementation and explanation; the human owns architecture and intent. Prefer **simple, explainable** code over clever abstractions.
 
 ---
 
-## 🤖 AI-Assisted Development
+## Constraints
 
-Cursor is used as a development assistant.
-
-Guidelines:
-
-- The developer (human) defines architecture and intent
-- Cursor assists with implementation and explanations
-- Code must remain understandable and explainable
-- Avoid over-engineered or overly complex solutions
+- No external **trading** libraries (HTTP for market data is fine).
+- Focus on **learning**, not live profitability.
+- Idiomatic Rust where it helps clarity.
+- Avoid premature abstraction.
 
 ---
 
-## 📚 Documentation Goals
+## Documentation habits
 
-This project documents both implementation and learning.
-
-### Objectives
-
-- Capture key Rust concepts as they are introduced
-- Explain trading concepts in simple terms
-- Keep the trading handbook accurate as domain language evolves
-- Show progression from simple to more advanced systems
-
----
-
-### Approach
-
-- Keep documentation concise and practical
-- Tie explanations directly to code usage
-- Prefer clarity over completeness
-- Avoid duplicating information unnecessarily
-
----
-
-### Files
-
-See [Documentation index](../README.md) for the full layout. Commonly used:
-
-- [`learning/rust-learning.md`](../learning/rust-learning.md) → Rust concepts and learnings
-- [`learning/dev-log.md`](../learning/dev-log.md) → Progress, decisions, mistakes
-- [`reference/trading-handbook.md`](../reference/trading-handbook.md) → Trading and backtesting (primer + quick lookup)
-- [`reference/ui-rules.md`](../reference/ui-rules.md) → UI conventions (read-only, types mirror Rust)
-- [`README.md`](../README.md) (this folder) → Map of all docs
-- [`README.md`](../../README.md) (repo root) → High-level overview
-- [`ui/README.md`](../../ui/README.md) → How to run the front-end
-
----
-
-## ⚙️ Current Features
-
-- **Data**: Binance klines (with local JSON cache under `outputs/`), or CSV via `data::load_csv` for experiments
-- **Strategies**: moving average crossover, RSI mean-reversion, random, buy & hold
-- **Engine**: positions, capital, equity curve, per-bar drawdown series, trade log
-- **Metrics**: returns, max drawdown, drawdown duration, per-period Sharpe, scoring vs buy & hold
-- **Export**: `BacktestRun` JSON (`market` + `results`), per-strategy CSVs, CLI comparison table
-- **UI**: React app — strategy table, market candlestick chart, equity, and drawdown charts
-
----
-
-## 🧱 Design Principles
-
-- Keep code simple and readable
-- Prefer explicit state over hidden logic
-- Avoid premature optimisation
-- Build incrementally with clear feedback loops
-
----
-
-## ⚠️ Constraints
-
-- No external *trading* libraries (networking for market data is OK)
-- Focus on learning, not profitability
-- Code should be idiomatic Rust where possible
-- Avoid unnecessary abstraction early
-
----
-
-## 🚀 Next Steps (Ideas)
-
-- Tune strategies and scoring
-- CLI or config for symbol / interval / limits
-- More metrics or reporting as needed
+- **PRD** = product source of truth.
+- **Trading handbook** = teach domain language and tie terms to this repo.
+- **Dev log** = narrative history.
+- Documentation links are listed in the repository root **`README.md`**.

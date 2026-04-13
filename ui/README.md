@@ -2,6 +2,8 @@
 
 React + Vite front-end for the backtest dashboard. The normal flow calls **`POST /run`** on the Rust API and renders the returned **`BacktestRun`** JSON. See [`docs/reference/ui-rules.md`](../docs/reference/ui-rules.md).
 
+**Start from the repo root:** run instructions and doc flow are in [`README.md`](../README.md); product spec is [`docs/product/PRD.md`](../docs/product/PRD.md).
+
 ## Prerequisites
 
 - Node **18+**

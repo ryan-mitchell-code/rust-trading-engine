@@ -359,8 +359,8 @@ and ensuring that:
   * `BacktestParams` for initial capital and position fraction (shared across arena runs; room for future costs).
   * `OpenPosition` struct instead of a tuple for entry, size, and allocation.
   * New `equity_curve` module: Sharpe and per-bar drawdown **series** as pure functions on a finished curve; `metrics.rs` stays the **incremental** bar-by-bar accumulator—documented so responsibilities stay clear.
-* **Trading handbook** (`docs/reference/trading-handbook.md`): from-scratch narrative (markets → bars → spot/PnL → strategies → honest backtesting → metrics → repo map) plus **section 8** quick reference. Renamed from “glossary” so the name matches the learning goal; `glossary.md` remains a short redirect for old links.
-* **Discoverability**: root `README.md`, `docs/README.md`, and `docs/project/context.md` point to the handbook.
+* **Trading handbook** (`docs/reference/trading-handbook.md`): from-scratch narrative (markets → bars → spot/PnL → strategies → honest backtesting → metrics → repo map) plus **section 8** quick reference. Renamed from “glossary” so the name matches the learning goal.
+* **Discoverability**: root `README.md` and `docs/project/context.md` point to the handbook.
 
 ---
 

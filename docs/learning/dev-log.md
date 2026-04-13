@@ -348,3 +348,45 @@ and ensuring that:
 * Introduce dataset switching (multiple markets)
 * Improve comparison vs Buy & Hold (relative performance view)
 * Explore portfolio-level simulation (multiple strategies combined)
+
+## Day 5 — PRD accuracy, engine hygiene, and trading handbook
+
+### What I built
+
+* **PRD** (`docs/product/PRD.md`): realigned with the codebase—current execution model (same-bar close), fixed arena strategy set, metrics (including composite score and drawdown series), API vs UI gaps (e.g. interval hardcoded in UI), and **Phase 2.5** framed as next-bar execution, fees, slippage, and a single fill path with tests.
+* **Backend refactor** (BacktestParams, OpenPosition, `equity_curve` module—see git log on `main`):
+
+  * `BacktestParams` for initial capital and position fraction (shared across arena runs; room for future costs).
+  * `OpenPosition` struct instead of a tuple for entry, size, and allocation.
+  * New `equity_curve` module: Sharpe and per-bar drawdown **series** as pure functions on a finished curve; `metrics.rs` stays the **incremental** bar-by-bar accumulator—documented so responsibilities stay clear.
+* **Trading handbook** (`docs/reference/trading-handbook.md`): from-scratch narrative (markets → bars → spot/PnL → strategies → honest backtesting → metrics → repo map) plus **section 8** quick reference. Renamed from “glossary” so the name matches the learning goal; `glossary.md` remains a short redirect for old links.
+* **Discoverability**: root `README.md`, `docs/README.md`, and `docs/project/context.md` point to the handbook.
+
+---
+
+### What I learned (documentation)
+
+* A **single accurate PRD** saves time when onboarding future-you; calling out lookahead and UI vs API truth avoids false assumptions.
+* Splitting **“live metrics during the run”** from **“analytics on the equity vector”** matches how people reason about backtests and keeps modules testable.
+
+---
+
+### What I learned (Rust / design)
+
+* Named structs for position state reduce tuple-index mistakes before execution logic gets richer (pending orders, next-bar fills).
+* Centralizing run parameters in one type makes the next features (fees, slippage) a smaller conceptual jump.
+
+---
+
+### Next questions
+
+* How much does next-bar open change rankings versus same-bar close on our current datasets?
+* What fee/slippage defaults best match Binance spot for documentation examples?
+
+---
+
+### Next steps
+
+* Implement Phase 2.5 execution (next-bar open, fees, slippage) with regression tests on small candle fixtures.
+* Wire **interval** (and later strategy toggles) through the UI to match `POST /run`.
+* Keep extending the trading handbook as execution and portfolio features land.

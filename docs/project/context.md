@@ -70,7 +70,7 @@ This project documents both implementation and learning.
 
 - Capture key Rust concepts as they are introduced
 - Explain trading concepts in simple terms
-- Maintain a glossary of domain-specific terminology
+- Keep the trading handbook accurate as domain language evolves
 - Show progression from simple to more advanced systems
 
 ---
@@ -90,7 +90,7 @@ See [Documentation index](../README.md) for the full layout. Commonly used:
 
 - [`learning/rust-learning.md`](../learning/rust-learning.md) → Rust concepts and learnings
 - [`learning/dev-log.md`](../learning/dev-log.md) → Progress, decisions, mistakes
-- [`reference/glossary.md`](../reference/glossary.md) → Trading concepts
+- [`reference/trading-handbook.md`](../reference/trading-handbook.md) → Trading and backtesting (primer + quick lookup)
 - [`reference/ui-rules.md`](../reference/ui-rules.md) → UI conventions (read-only, types mirror Rust)
 - [`README.md`](../README.md) (this folder) → Map of all docs
 - [`README.md`](../../README.md) (repo root) → High-level overview

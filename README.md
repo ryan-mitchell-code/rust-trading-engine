@@ -4,7 +4,9 @@ A Rust-based trading backtesting and strategy evaluation engine built as a hands
 
 This project focuses on building a **modular, extensible system** for testing and comparing trading strategies, while learning Rust and core quantitative trading concepts.
 
-**Documentation:** [docs/README.md](docs/README.md) — product spec, learning notes, glossary, UI rules, and dev log (organized by folder).
+**Documentation:** [docs/README.md](docs/README.md) — product spec, learning notes, UI rules, and dev log (organized by folder).
+
+**Trading handbook:** [docs/reference/trading-handbook.md](docs/reference/trading-handbook.md) — learn markets and backtesting from scratch, with terms tied to this codebase (metrics, execution, where things live in Rust). Section 8 is a quick reference (A–Z style table). We extend it as we add realism (fees, slippage, stricter fills).
 
 ---
 
@@ -158,6 +160,7 @@ Key design principles:
 
 ### Trading
 
+- See [docs/reference/trading-handbook.md](docs/reference/trading-handbook.md) for the full guide (drawdown, Sharpe, signals vs execution, and more).
 - Profit ≠ good strategy
 - Importance of risk (drawdown)
 - Consistency vs volatility (Sharpe ratio)

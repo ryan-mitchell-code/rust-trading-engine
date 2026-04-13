@@ -34,7 +34,7 @@ Start here for project docs. Paths are relative to this folder (`docs/`).
 
 | Doc | Description |
 | --- | ----------- |
-| [reference/glossary.md](reference/glossary.md) | Trading and domain terminology |
+| [reference/trading-handbook.md](reference/trading-handbook.md) | Trading and backtesting — from-scratch guide + quick term lookup |
 | [reference/ui-rules.md](reference/ui-rules.md) | Front-end conventions (types mirror Rust, etc.) |
 | [reference/rules.md](reference/rules.md) | Contributor / AI assistant rules for this repo |
 
